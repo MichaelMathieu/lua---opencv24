@@ -1,0 +1,10 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6 FATAL_ERROR)
+CMAKE_POLICY(VERSION 2.6)
+FIND_PACKAGE(Torch REQUIRED)
+FIND_PACKAGE(OpenCV REQUIRED)
+
+SET(src THpp.cpp opencv.cpp common.cpp)
+SET(luasrc init.lua)
+
+ADD_TORCH_PACKAGE(opencv24 "${src}" "${luasrc}" "OpenCV 2.4")
+TARGET_LINK_LIBRARIES(opencv24 luaT TH ${OpenCV_LIBS} freak)
