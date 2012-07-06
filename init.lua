@@ -17,18 +17,18 @@ require 'libopencv24'
 --
 
 function opencv24.TH2CVImage(im)
-   if (im.type == 'torch.ByteTensor') and (im:size(3) == 3) then
-      -- TODO: in the unlikely case of a 3xh byte image, this fails
+   if (im:type() == 'torch.ByteTensor') and ((im:nDimension() == 2) or (im:size(3) == 3)) then
+      -- TODO: in the unlikely case of a 3-channels 3xh byte image, this fails
       return im
    else
-      local im_cv = torch.ByteTensor(im:size(2), im:size(3), 3)
+      local im_cv = torch.ByteTensor()
       im.libopencv24.TH2CVImage(im, im_cv)
       return im_cv
    end
 end
 
 function opencv24.CV2THImage(im_cv)
-   local im = torch.Tensor(3, im_cv:size(1), im_cv:size(2))
+   local im = torch.Tensor()
    im.libopencv24.CV2THImage(im_cv, im)
    return im
 end
@@ -40,7 +40,7 @@ end
 function opencv24.TrackPointsLK(...)
    local self = {}
    xlua.unpack_class(
-      self, {...}, 'sfm2.getEgoMotion', help_desc,
+      self, {...}, 'opencv24.TrackPointsLK', help_desc,
       {arg='im1', type='torch.Tensor', help='image 1'},
       {arg='im2', type='torch.Tensor', help='image 2'},
       {arg='maxPoints', type='number', help='Maximum number of tracked points', default=500},
@@ -72,7 +72,7 @@ end
 function opencv24.TrackPointsFREAK(...)
    local self = {}
    xlua.unpack_class(
-      self, {...}, 'sfm2.getEgoMotion', help_desc,
+      self, {...}, 'opencv24.TrackPointsFREAK', help_desc,
       {arg='im1', type='torch.Tensor', help='image 1'},
       {arg='im2', type='torch.Tensor', help='image 2'},
       {arg='im1Freaks', type='torch.ByteTensor', default=nil,
@@ -103,6 +103,33 @@ function opencv24.TrackPointsFREAK(...)
    return tracked
 end
 
+--------------------------------------------------------------------------------
+-- Dense Optical Flow
+--
+
+function opencv24.DenseOpticalFlow(...)
+   local self = {}
+   xlua.unpack_class(
+      self, {...}, 'opencv24.DenseOpticalFlow', help_desc,
+      {arg='im1', type='torch.Tensor', help='image 1'},
+      {arg='im2', type='torch.Tensor', help='image 2'},
+      {arg='pyr_scale', type='number', default=0.5,
+       help='Ratio between 2 successive pyramid scales'},
+      {arg='levels', type='number', default=5, help='Pyramid depth'},
+      {arg='winsize', type='number', default=11, help='Averaging window size'},
+      {arg='iterations', type='number', default=20, help='Number of iteration at each level'},
+      {arg='poly_n', type='number', default=5,
+       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel'},
+      {arg='poly_sigma', type='number', default=1.1,
+       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel. For poly_n=5 , you can set poly_sigma=1.1 . For poly_n=7 , a good value would be poly_sigma=1.5'})
+   local flow = torch.Tensor(im1:size(2), im1:size(3), 2)
+   local im1_cv = opencv24.TH2CVImage(self.im1)
+   local im2_cv = opencv24.TH2CVImage(self.im2)
+   flow.libopencv24.DenseOpticalFlow(im1_cv, im2_cv, flow, self.pyr_scale, self.levels,
+				     self.winsize, self.iterations, self.poly_n,
+				     self.poly_sigma)
+   return flow
+end
 
 --------------------------------------------------------------------------------
 -- FREAK
@@ -175,6 +202,27 @@ end
 --------------------------------------------------------------------------------
 -- Test/Example
 --
+
+function opencv24.ImageConversion_testme()
+   local im = image.scale(image.lena(), 123, 242)
+   local im = image.lena()
+   local im_cv = opencv24.TH2CVImage(im)
+   local im2 = opencv24.CV2THImage(im_cv)
+   local diff = (im-im2):gt(1e-10):sum()
+   assert(diff == 0)
+   local im3 = opencv24.CV2THImage(opencv24.TH2CVImage(im_cv))
+   diff = (im-im3):gt(1e-10):sum()
+   assert(diff == 0)
+
+   im = im[1]
+   im_cv = opencv24.TH2CVImage(im)
+   im2 = opencv24.CV2THImage(im_cv)
+   diff = (im-im2):gt(1e-10):sum()
+   assert(diff == 0)
+   im3 = opencv24.CV2THImage(opencv24.TH2CVImage(im_cv))
+   diff = (im-im3):gt(1e-10):sum()
+   assert(diff == 0)
+end
 
 function opencv24.TrackPointsLK_testme()
    require 'draw'

@@ -4,6 +4,7 @@
 
 # Features :
  + Tracking using goodFeaturesToTrack and calcOpticalFlowPyrLK
+ + Dense Optical Flow using calcOpticalFlowFarneback
  + FREAKS descriptors with FAST detectors
 
 ## who

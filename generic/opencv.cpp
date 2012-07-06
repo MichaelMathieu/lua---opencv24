@@ -25,30 +25,45 @@ using namespace TH;
 
 static int libopencv24_(TH2CVImage)(lua_State* L) {
   setLuaState(L);
-  Tensor<real> im   = FromLuaStack<Tensor<real> >(1);
-  Tensor<ubyte>  imcv = FromLuaStack<Tensor<ubyte > >(2);
+  Tensor<real > im   = FromLuaStack<Tensor<real > >(1);
+  Tensor<ubyte> imcv = FromLuaStack<Tensor<ubyte> >(2);
 
-  long h = im.size(1), w = im.size(2);
-  long i, j, k;
-  for (i = 0; i < h; ++i)
-    for (j = 0; j < w; ++j)
-      for (k = 0; k < 3; ++k)
-	imcv(i,j,k) = im(2-k,i,j)*(real)255.;
+  if (im.nDimension() == 2) {
+    long h = im.size(0), w = im.size(1);
+    imcv.resize(h, w);
+    Mat im_cv = TensorToMat(imcv);
+    TensorToMat(im).convertTo(im_cv, CV_8U, 255., 0.5);
+  } else {
+    long h = im.size(1), w = im.size(2);
+    imcv.resize(h, w, 3);
+    long i, j, k;
+    for (i = 0; i < h; ++i)
+      for (j = 0; j < w; ++j)
+	for (k = 0; k < 3; ++k)
+	  imcv(i,j,k) = im(2-k,i,j)*(real)255. + (real)(0.5);
+  }
 
   return 0;
 }
 
 static int libopencv24_(CV2THImage)(lua_State* L) {
   setLuaState(L);
-  Tensor<real> imcv = FromLuaStack<Tensor<real> >(1);
-  Tensor<ubyte>  im   = FromLuaStack<Tensor<ubyte > >(2);
+  Tensor<ubyte> imcv = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<real > im   = FromLuaStack<Tensor<real > >(2);
 
-  long h = im.size(1), w = im.size(2);
-  long i, j, k;
-  for (i = 0; i < h; ++i)
-    for (j = 0; j < w; ++j)
-      for (k = 0; k < 3; ++k)
-	im(k,i,j) = ((real)im(i,j,2-k))/(real)255.;
+  long h = imcv.size(0), w = imcv.size(1);
+  if (imcv.nDimension() == 2) {
+    im.resize(h, w);
+    Mat im_cv = TensorToMat(im);
+    TensorToMat(imcv).convertTo(im_cv, DataType<real>::type, 1./255.);
+  } else {    
+    im.resize(3, h, w);
+    long i, j, k;
+    for (i = 0; i < h; ++i)
+      for (j = 0; j < w; ++j)
+	for (k = 0; k < 3; ++k)
+	  im(k,i,j) = ((real)imcv(i,j,2-k))/(real)255.;
+  }
 
   return 0;
 }
@@ -61,7 +76,13 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
   setLuaState(L);
   Tensor<ubyte> im1  = FromLuaStack<Tensor<ubyte> >(1);
   Tensor<ubyte> im2  = FromLuaStack<Tensor<ubyte> >(2);
-  Tensor<real>  flow = FromLuaStack<Tensor<real> >(L, 3);
+  Tensor<real>  flow = FromLuaStack<Tensor<real > >(3);
+  double pyr_scale   = FromLuaStack<double>(4);
+  int    levels      = FromLuaStack<int   >(5);
+  int    winsize     = FromLuaStack<int   >(6);
+  int    iterations  = FromLuaStack<int   >(7);
+  int    poly_n      = FromLuaStack<int   >(8);
+  double poly_sigma  = FromLuaStack<double>(9);
   
   matb im1_cv_gray, im2_cv_gray;
   if (im1.nDimension() == 3) { //color images
@@ -71,16 +92,16 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
     im1_cv_gray = TensorToMat(im1);
     im2_cv_gray = TensorToMat(im2);
   }
-  int h = im1_cv_gray.size().height, w = im1_cv_gray.size().width;
 
-  flow.resize(h, w, 2);
 #ifdef TH_REAL_IS_FLOAT  
   Mat flow_cv = TensorToMat(flow);
 #else
+  int h = im1_cv_gray.size().height, w = im1_cv_gray.size().width;
   Mat flow_cv(h, w, CV_32FC2);
 #endif
 
-  calcOpticalFlowFarneback(im1_cv_gray, im2_cv_gray, flow_cv, 0.5, 5, 11, 10, 5, 1.1, 0);
+  calcOpticalFlowFarneback(im1_cv_gray, im2_cv_gray, flow_cv, pyr_scale, levels, winsize,
+			   iterations, poly_n, poly_sigma, 0);
 
 #ifndef TH_REAL_IS_FLOAT
   for (int i = 0; i < h; ++i)
