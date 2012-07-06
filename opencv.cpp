@@ -70,6 +70,7 @@ static int TrackPoints(lua_State* L) {
 //
 
 vector<FREAK*> freaks_g;
+
 static int CreateFREAK(lua_State* L) {
   setLuaState(L);
   bool  orientedNormalization = FromLuaStack<bool >(1);
@@ -93,6 +94,75 @@ static int DeleteFREAK(lua_State* L) {
   setLuaState(L);
   int iFREAK = FromLuaStack<int  >(1);
   delete freaks_g[iFREAK];
+  return 0;
+}
+
+static int ComputeFREAK(lua_State* L) {
+  setLuaState(L);
+  Tensor<ubyte>         im        = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<unsigned char> descs     = FromLuaStack<Tensor<unsigned char> >(2);
+  Tensor<float>         positions = FromLuaStack<Tensor<float> >(3);
+  float       keypoints_threshold = FromLuaStack<float>(4);
+  int                   iFREAK    = FromLuaStack<int>(5);
+
+  matb im_cv_gray;
+  if (im.nDimension() == 3) //color images
+    cvtColor(TensorToMat3b(im), im_cv_gray, CV_BGR2GRAY);
+  else
+    im_cv_gray = TensorToMat(im);
+
+  // keypoints
+  vector<KeyPoint> keypoints;
+  FAST(im_cv_gray, keypoints, keypoints_threshold, true);
+  
+  // descriptors
+  FREAK & freak = *(freaks_g[iFREAK]);
+  Mat descs_cv;
+  freak.compute(im_cv_gray, keypoints, descs_cv);
+  
+  // output
+  positions.resize(keypoints.size(), 4);
+  for (size_t i = 0; i < keypoints.size(); ++i) {
+    const KeyPoint & kpt = keypoints[i];
+    positions(i, 0) = kpt.pt.x;
+    positions(i, 1) = kpt.pt.y;
+    positions(i, 2) = kpt.size;
+    positions(i, 3) = kpt.angle;
+  }
+  descs.resize(descs_cv.size().height, descs_cv.size().width);
+  descs_cv.copyTo(TensorToMat(descs));
+  
+  return 0;
+}
+
+static int TrainFREAK(lua_State* L) {
+  setLuaState(L);
+  vector<Tensor<ubyte> > images  = FromLuaStack<vector<Tensor<ubyte> > >(1);
+  Tensor<int> pairs_out           = FromLuaStack<Tensor<int> >(2);
+  size_t      iFREAK              = FromLuaStack<size_t>(3);
+  float       keypoints_threshold = FromLuaStack<float>(4);
+  double      corrThres           = FromLuaStack<double>(5);
+
+  vector<Mat> images_cv;
+  vector<vector<KeyPoint> > keypoints;
+  for (size_t i = 0; i < images.size(); ++i) {
+    matb im_gray;
+    if (images[i].nDimension() == 3)
+      cvtColor(TensorToMat3b(images[i]), im_gray, CV_BGR2GRAY);
+    else
+      im_gray = TensorToMat(images[i]);
+    images_cv.push_back(im_gray);
+    keypoints.push_back(vector<KeyPoint>());
+    FAST(im_gray, keypoints.back(), keypoints_threshold, true);
+  }
+
+  FREAK & freak = *(freaks_g[iFREAK]);
+  vector<int> pairs = freak.selectPairs(images_cv, keypoints, corrThres, false);
+
+  pairs_out.resize(pairs.size());
+  for (size_t i = 0; i < pairs.size(); ++i)
+    pairs_out(i) = pairs[i];
+
   return 0;
 }
 
@@ -159,6 +229,8 @@ static const luaL_reg libopencv24_init [] =
     {"TrackPoints", TrackPoints},
     {"CreateFREAK", CreateFREAK},
     {"DeleteFREAK", DeleteFREAK},
+    {"ComputeFREAK", ComputeFREAK},
+    {"TrainFREAK", TrainFREAK},
     {"MatchFREAK", MatchFREAK},
     {NULL, NULL}
   };

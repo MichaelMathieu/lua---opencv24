@@ -17,9 +17,14 @@ require 'libopencv24'
 --
 
 function opencv24.TH2CVImage(im)
-   local im_cv = torch.ByteTensor(im:size(2), im:size(3), 3)
-   im.libopencv24.TH2CVImage(im, im_cv)
-   return im_cv
+   if (im.type == 'torch.ByteTensor') and (im:size(3) == 3) then
+      -- TODO: in the unlikely case of a 3xh byte image, this fails
+      return im
+   else
+      local im_cv = torch.ByteTensor(im:size(2), im:size(3), 3)
+      im.libopencv24.TH2CVImage(im, im_cv)
+      return im_cv
+   end
 end
 
 function opencv24.CV2THImage(im_cv)
@@ -122,7 +127,8 @@ function opencv24.ComputeFREAK(im, detection_threshold, iFREAK)
    local freaks = {}
    freaks.descs = torch.ByteTensor()
    freaks.pos = torch.FloatTensor()
-   im.libopencv24.ComputeFREAK(im, freaks.descs, freaks.pos, detection_threshold, iFREAK);
+   libopencv24.ComputeFREAK(opencv24.TH2CVImage(im), freaks.descs, freaks.pos,
+			    detection_threshold, iFREAK);
    return freaks
 end
 
@@ -156,9 +162,13 @@ function opencv24.TrainFREAK(images, iFREAK, keypoints_threshold, correlation_th
    if #images < 1 then
       error("opencv24.TrainFREAK : there must be at least one image...")
    end
+   local images_cv = {}
+   for i = 1,#images do
+      images_cv[i] = opencv24.TH2CVImage(images[i])
+   end
    local pairs = torch.IntTensor()
-   images[1].libopencv24.TrainFREAK(images, pairs, iFREAK, keypoints_threshold,
-				    correlation_threshold)
+   libopencv24.TrainFREAK(images_cv, pairs, iFREAK, keypoints_threshold,
+			  correlation_threshold)
    return pairs
 end
 
@@ -207,13 +217,12 @@ end
 function opencv24.FREAK_testme()
    local size = 22*6
    local iFREAK = opencv24.CreateFREAK(true, true, size, 4)
-   --local im = image.lena()
-   --local im2 = image.rotate(im, 0.1)
-   local im  = image.load('/home/myrhev/NYU/depth-estimation/radial/data/no-risk/part1/images/000000001.jpg')
-   local im2 = image.load('/home/myrhev/NYU/depth-estimation/radial/data/no-risk/part1/images/000000002.jpg')
-   --local trainedPairs = opencv24.TrainFREAK({im}, iFREAK, 40, 0.7)
-   --local iFREAK = opencv24.CreateFREAK(true, true, size, 4, trainedPairs)
-   --local iFREAK = opencv24.CreateFREAK(true, true, 22, 4)
+   local im = image.lena()
+   local im2 = image.rotate(im, 0.1)
+   --local im  = image.load('/home/myrhev/NYU/depth-estimation/radial/data/no-risk/part1/images/000000001.jpg')
+   --local im2 = image.load('/home/myrhev/NYU/depth-estimation/radial/data/no-risk/part1/images/000000002.jpg')
+   local trainedPairs = opencv24.TrainFREAK({im}, iFREAK, 40, 0.7)
+   local iFREAK = opencv24.CreateFREAK(true, true, size, 4, trainedPairs)
    local timer = torch.Timer()
    local freaks = opencv24.ComputeFREAK(im, 40, iFREAK)
    print("Freak 1 : ", timer:time().real)
