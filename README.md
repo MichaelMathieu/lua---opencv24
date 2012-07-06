@@ -2,6 +2,10 @@
 
        URL:http://opencv.willowgarage.com/
 
+# Features :
+ + Tracking using goodFeaturesToTrack and calcOpticalFlowPyrLK
+ + FREAKS descriptors with FAST detectors
+
 ## who
 
  + Michael Mathieu

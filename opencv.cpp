@@ -6,7 +6,6 @@ extern "C" {
 #include "THpp.hpp"
 
 #include<opencv/cv.h>
-#include<freak/freak.h>
 #include "common.hpp"
 
 using namespace TH;
@@ -237,8 +236,6 @@ static const luaL_reg libopencv24_init [] =
 
 static const void* torch_FloatTensor_id = NULL;
 static const void* torch_DoubleTensor_id = NULL;
-
-#include "genericpp/opencv.cpp"
 
 #include "generic/opencv.cpp"
 #include "THGenerateFloatTypes.h"
