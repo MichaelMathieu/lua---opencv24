@@ -11,14 +11,72 @@ extern "C" {
 
 using namespace TH;
 
+//============================================================
+// Tracking
+//
+
+static int TrackPoints(lua_State* L) {
+  setLuaState(L);
+  Tensor<ubyte> im1          = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<ubyte> im2          = FromLuaStack<Tensor<ubyte> >(2);
+  Tensor<float> corresps     = FromLuaStack<Tensor<float> >(3);
+  size_t        maxCorners   = FromLuaStack<size_t>        (4);
+  float         qualityLevel = FromLuaStack<float>         (5);
+  float         minDistance  = FromLuaStack<float>         (6);
+  int           blockSize    = FromLuaStack<int>           (7);
+  int           winSize      = FromLuaStack<int>           (8);
+  int           maxLevel     = FromLuaStack<int>           (9);
+  bool          useHarris    = FromLuaStack<bool>          (10);
+  
+  Mat im1_cv, im2_cv, im1_cv_gray;
+  if (im1.nDimension() == 3) { //color images
+    im1_cv = TensorToMat3b(im1);
+    im2_cv = TensorToMat3b(im2);
+    cvtColor(im1_cv, im1_cv_gray, CV_BGR2GRAY);
+  } else {
+    im1_cv = TensorToMat(im1);
+    im2_cv = TensorToMat(im2);
+    im1_cv_gray = im1_cv;
+  }
+  matf corresps_cv = TensorToMat(corresps);
+
+  const Size winSize2(winSize, winSize);
+  const TermCriteria criteria = TermCriteria(TermCriteria::COUNT+TermCriteria::EPS, 100, 0.1);
+  vector<Point2f> points1, points2;
+  vector<ubyte> status;
+  vector<float> err;
+  Mat mask;
+  goodFeaturesToTrack(im1_cv_gray, points1, maxCorners, qualityLevel, minDistance,
+		      mask, blockSize, useHarris, 0.04f);
+  calcOpticalFlowPyrLK(im1_cv, im2_cv, points1, points2, status, err, winSize2,
+		       maxLevel, criteria, 0, 0);
+
+  size_t i, iCorresps = 0;
+  for (i = 0; i < points2.size(); ++i)
+    if (status[i]) {
+      corresps(iCorresps, 0) = points1[i].x;
+      corresps(iCorresps, 1) = points1[i].y;
+      corresps(iCorresps, 2) = points2[i].x;
+      corresps(iCorresps, 3) = points2[i].y;
+      ++iCorresps;
+    }
+  THFloatTensor_narrow(corresps, corresps, 0, 0, iCorresps);
+  
+  return 0;
+}
+
+//============================================================
+// FREAK
+//
+
 vector<FREAK*> freaks_g;
 static int CreateFREAK(lua_State* L) {
   setLuaState(L);
-  bool  orientedNormalization = FromLuaStack<bool >(L, 1);
-  bool  scaleNormalization    = FromLuaStack<bool >(L, 2);
-  float patternSize           = FromLuaStack<float>(L, 3);
-  int   nOctave               = FromLuaStack<int  >(L, 4);
-  Tensor<int> trainedPairs    = FromLuaStack<Tensor<int> >(L, 5);
+  bool  orientedNormalization = FromLuaStack<bool >(1);
+  bool  scaleNormalization    = FromLuaStack<bool >(2);
+  float patternSize           = FromLuaStack<float>(3);
+  int   nOctave               = FromLuaStack<int  >(4);
+  Tensor<int> trainedPairs    = FromLuaStack<Tensor<int> >(5);
   
   vector<int> pairs;
   if (trainedPairs.nDimension() != 0)
@@ -27,13 +85,13 @@ static int CreateFREAK(lua_State* L) {
 
   freaks_g.push_back(new FREAK(orientedNormalization, scaleNormalization,
 			       patternSize, nOctave, pairs));
-  PushOnLuaStack<int>(L, freaks_g.size()-1);
+  PushOnLuaStack<int>(freaks_g.size()-1);
   return 1;
 }
 
 static int DeleteFREAK(lua_State* L) {
   setLuaState(L);
-  int iFREAK = FromLuaStack<int  >(L, 1);
+  int iFREAK = FromLuaStack<int  >(1);
   delete freaks_g[iFREAK];
   return 0;
 }
@@ -49,10 +107,10 @@ inline size_t HammingDistance(unsigned long long int* p1, unsigned long long int
 
 static int MatchFREAK(lua_State* L) {
   setLuaState(L);
-  Tensor<unsigned char> descs1 = FromLuaStack<Tensor<unsigned char> >(L, 1);
-  Tensor<unsigned char> descs2 = FromLuaStack<Tensor<unsigned char> >(L, 2);
-  Tensor<long         > matches= FromLuaStack<Tensor<long         > >(L, 3);
-  size_t threshold = FromLuaStack<size_t>(L, 4);
+  Tensor<unsigned char> descs1 = FromLuaStack<Tensor<unsigned char> >(1);
+  Tensor<unsigned char> descs2 = FromLuaStack<Tensor<unsigned char> >(2);
+  Tensor<long         > matches= FromLuaStack<Tensor<long         > >(3);
+  size_t threshold = FromLuaStack<size_t>(4);
 
   descs1.newContiguous();
   descs2.newContiguous();
@@ -83,9 +141,14 @@ static int MatchFREAK(lua_State* L) {
       ++iMatches;
     }
   }
-  PushOnLuaStack<int>(L, iMatches);
+  PushOnLuaStack<int>(iMatches);
   return 1;
 }
+
+//============================================================
+// Register functions in LUA
+//
+
 
 #define torch_(NAME) TH_CONCAT_3(torch_, Real, NAME)
 #define torch_string_(NAME) TH_CONCAT_STRING_3(torch., Real, NAME)
@@ -93,6 +156,7 @@ static int MatchFREAK(lua_State* L) {
 
 static const luaL_reg libopencv24_init [] =
   {
+    {"TrackPoints", TrackPoints},
     {"CreateFREAK", CreateFREAK},
     {"DeleteFREAK", DeleteFREAK},
     {"MatchFREAK", MatchFREAK},

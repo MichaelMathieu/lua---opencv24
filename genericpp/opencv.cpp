@@ -6,16 +6,56 @@
 
 using namespace TH;
 
+//============================================================
+// Image conversions
+//
+
+template<typename THReal>
+static int TH2CVImage(lua_State* L) {
+  setLuaState(L);
+  Tensor<THReal> im   = FromLuaStack<Tensor<THReal> >(1);
+  Tensor<ubyte>  imcv = FromLuaStack<Tensor<ubyte > >(2);
+
+  long h = im.size(1), w = im.size(2);
+  long i, j, k;
+  for (i = 0; i < h; ++i)
+    for (j = 0; j < w; ++j)
+      for (k = 0; k < 3; ++k)
+	imcv(i,j,k) = im(2-k,i,j)*(THReal)255.;
+
+  return 0;
+}
+
+template<typename THReal>
+static int CV2THImage(lua_State* L) {
+  setLuaState(L);
+  Tensor<THReal> imcv = FromLuaStack<Tensor<THReal> >(1);
+  Tensor<ubyte>  im   = FromLuaStack<Tensor<ubyte > >(2);
+
+  long h = im.size(1), w = im.size(2);
+  long i, j, k;
+  for (i = 0; i < h; ++i)
+    for (j = 0; j < w; ++j)
+      for (k = 0; k < 3; ++k)
+	im(k,i,j) = ((THReal)im(i,j,2-k))/(THReal)255.;
+
+  return 0;
+}
+
+//============================================================
+// FREAK
+//
+
 extern std::vector<FREAK*> freaks_g;
 
 template<typename THReal>
 static int ComputeFREAK(lua_State* L) {
   setLuaState(L);
-  Tensor<THReal> im           = FromLuaStack<Tensor<THReal> >(L, 1);
-  Tensor<unsigned char> descs = FromLuaStack<Tensor<unsigned char> >(L, 2);
-  Tensor<float> positions     = FromLuaStack<Tensor<float> >(L, 3);
-  float keypoints_threshold   = FromLuaStack<float>(L, 4);
-  int iFREAK                  = FromLuaStack<int>(L, 5);
+  Tensor<THReal>        im        = FromLuaStack<Tensor<THReal> >(1);
+  Tensor<unsigned char> descs     = FromLuaStack<Tensor<unsigned char> >(2);
+  Tensor<float>         positions = FromLuaStack<Tensor<float> >(3);
+  float       keypoints_threshold = FromLuaStack<float>(4);
+  int                   iFREAK    = FromLuaStack<int>(5);
 
   mat3b im_cv = TensorToMat3b(im);
   matb im_cv_gray;
@@ -48,11 +88,11 @@ static int ComputeFREAK(lua_State* L) {
 template<typename THReal>
 static int TrainFREAK(lua_State* L) {
   setLuaState(L);
-  vector<Tensor<THReal> > images = FromLuaStack<vector<Tensor<THReal> > >(L, 1);
-  Tensor<int> pairs_out = FromLuaStack<Tensor<int> >(L, 2);
-  size_t iFREAK = FromLuaStack<size_t>(L, 3);
-  float keypoints_threshold   = FromLuaStack<float>(L, 4);
-  double corrThres = FromLuaStack<double>(L, 5);
+  vector<Tensor<THReal> > images = FromLuaStack<vector<Tensor<THReal> > >(1);
+  Tensor<int> pairs_out = FromLuaStack<Tensor<int> >(2);
+  size_t iFREAK = FromLuaStack<size_t>(3);
+  float keypoints_threshold   = FromLuaStack<float>(4);
+  double corrThres = FromLuaStack<double>(5);
 
   vector<Mat> images_cv;
   vector<vector<KeyPoint> > keypoints;
@@ -77,10 +117,13 @@ static int TrainFREAK(lua_State* L) {
 //============================================================
 // Register functions in LUA
 //
+
 template<typename THReal>
 vector<luaL_reg> libopencv24_Main__() {
   
   static const luaL_reg reg[] = {
+    {"TH2CVImage", TH2CVImage<THReal>},
+    {"CV2THImage", CV2THImage<THReal>},
     {"ComputeFREAK", ComputeFREAK<THReal>},
     {"TrainFREAK", TrainFREAK<THReal>},
     {NULL, NULL}  /* sentinel */
