@@ -142,8 +142,10 @@ function opencv24.CreateFREAK(orientedNormalization, scaleNormalization,
    patternSize = patternSize or 22
    nOctave = nOctave or 4
    trainedPairs = trainedPairs or torch.IntTensor()
-   return libopencv24.CreateFREAK(orientedNormalization, scaleNormalization,
-				  patternSize, nOctave, trainedPairs)
+   local iFREAK = libopencv24.CreateFREAK(orientedNormalization, scaleNormalization,
+					  patternSize, nOctave, trainedPairs)
+   opencv24.ComputeFREAK(image.lena(), 40, iFREAK)
+   return iFREAK
 end
 
 function opencv24.DeleteFREAK(iFREAK)
@@ -263,7 +265,7 @@ function opencv24.TrackPointsFREAK_testme()
 end
 
 function opencv24.FREAK_testme()
-   local size = 22*6
+   local size = 22
    local iFREAK = opencv24.CreateFREAK(true, true, size, 4)
    local im = image.lena()
    local im2 = image.rotate(im, 0.1)
