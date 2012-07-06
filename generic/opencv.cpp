@@ -28,19 +28,22 @@ static int libopencv24_(TH2CVImage)(lua_State* L) {
   Tensor<real > im   = FromLuaStack<Tensor<real > >(1);
   Tensor<ubyte> imcv = FromLuaStack<Tensor<ubyte> >(2);
 
+  im.newContiguous();
+
   if (im.nDimension() == 2) {
     long h = im.size(0), w = im.size(1);
     imcv.resize(h, w);
     Mat im_cv = TensorToMat(imcv);
-    TensorToMat(im).convertTo(im_cv, CV_8U, 255., 0.5);
+    TensorToMat(im).convertTo(im_cv, CV_8U, 255., 0.);
   } else {
     long h = im.size(1), w = im.size(2);
     imcv.resize(h, w, 3);
+    
     long i, j, k;
     for (i = 0; i < h; ++i)
       for (j = 0; j < w; ++j)
 	for (k = 0; k < 3; ++k)
-	  imcv(i,j,k) = im(2-k,i,j)*(real)255. + (real)(0.5);
+	  imcv(i,j,k) = (ubyte)(im(2-k,i,j)*(real)255. + (real)(0.5));
   }
 
   return 0;
@@ -50,6 +53,8 @@ static int libopencv24_(CV2THImage)(lua_State* L) {
   setLuaState(L);
   Tensor<ubyte> imcv = FromLuaStack<Tensor<ubyte> >(1);
   Tensor<real > im   = FromLuaStack<Tensor<real > >(2);
+
+  imcv.newContiguous();
 
   long h = imcv.size(0), w = imcv.size(1);
   if (imcv.nDimension() == 2) {

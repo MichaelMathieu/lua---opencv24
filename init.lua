@@ -50,7 +50,7 @@ function opencv24.TrackPointsLK(...)
       {arg='featuresBlockSize', type='number',
        help='opencv GoodFeaturesToTrack block size', default=20},
       {arg='trackerWinSize', type='number',
-       help='opencv calcOpticalFlowPyrLK block size', default=10},
+       help='opencv calcOpticalFlowPyrLK block size', default=11},
       {arg='trackerMaxLevel', type='number',
        help='opencv GoodFeaturesToTrack pyramid depth', default=5},
       {arg='useHarris', type='bool', default = false, help = 'Use Harris detector'})
@@ -205,22 +205,22 @@ end
 
 function opencv24.ImageConversion_testme()
    local im = image.scale(image.lena(), 123, 242)
-   local im = image.lena()
+   local eps = 1/(255*2)
    local im_cv = opencv24.TH2CVImage(im)
    local im2 = opencv24.CV2THImage(im_cv)
-   local diff = (im-im2):gt(1e-10):sum()
+   local diff = (im-im2):abs():gt(eps):sum()
    assert(diff == 0)
    local im3 = opencv24.CV2THImage(opencv24.TH2CVImage(im_cv))
-   diff = (im-im3):gt(1e-10):sum()
+   diff = (im-im3):abs():gt(eps):sum()
    assert(diff == 0)
 
    im = im[1]
    im_cv = opencv24.TH2CVImage(im)
    im2 = opencv24.CV2THImage(im_cv)
-   diff = (im-im2):gt(1e-10):sum()
+   diff = (im-im2):abs():gt(eps):sum()
    assert(diff == 0)
    im3 = opencv24.CV2THImage(opencv24.TH2CVImage(im_cv))
-   diff = (im-im3):gt(1e-10):sum()
+   diff = (im-im3):abs():gt(eps):sum()
    assert(diff == 0)
 end
 

@@ -93,17 +93,32 @@ mat3b TensorToMat3b<ubyte>(const TH::Tensor<ubyte> & im) {
 template<typename Treal>
 Mat TensorToMat(TH::Tensor<Treal> & T) {
   T = T.newContiguous();
-  if (T.nDimension() == 1) {
+  const int n = T.nDimension();
+  switch(n) {
+  case 0:
+    return Mat(0, 0, DataType<Treal>::type);
+  case 1:
     return Mat(T.size(0), 1, DataType<Treal>::type, (void*)T.data());
-  } else if (T.nDimension() == 2) {
+  case 2:
     return Mat(T.size(0), T.size(1), DataType<Treal>::type, (void*)T.data());
-  } else if (T.nDimension() == 3) {
+  case 3:
     if (T.size(2) == 3) {
       return Mat(T.size(0), T.size(1), DataType<Vec<Treal, 3> >::type, (void*)T.data());
     }
+  default:
+    {
+      int* sizes = new int[n];
+      size_t* steps = new size_t[n-1];
+      for (int i = 0; i < n; ++i)
+	sizes[i] = T.size(i);
+      for (int i = 0; i < n-1; ++i)
+	steps[i] = T.stride(i)*sizeof(Treal);
+      Mat ret(T.nDimension(), sizes, DataType<Treal>::type, (void*)T.data(), steps);
+      delete[] steps;
+      delete[] sizes;
+      return ret;
+    }
   }
-  THerror("TensorToMat: N-d tensors not implemented");
-  return matf(0,0); //remove warning
 }
 
 template<typename Treal>
