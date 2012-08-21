@@ -152,6 +152,7 @@ function opencv24.DeleteFREAK(iFREAK)
    libopencv24.DeleteFREAK(iFREAK)
 end
 
+
 function opencv24.ComputeFREAK(im, detection_threshold, iFREAK)
    local freaks = {}
    freaks.descs = torch.ByteTensor()
@@ -199,6 +200,30 @@ function opencv24.TrainFREAK(images, iFREAK, keypoints_threshold, correlation_th
    libopencv24.TrainFREAK(images_cv, pairs, iFREAK, keypoints_threshold,
 			  correlation_threshold)
    return pairs
+end
+
+function opencv24.ComputeFAST(im, detection_threshold)
+   local pos = torch.FloatTensor()
+   libopencv24.ComputeFAST(opencv24.TH2CVImage(im), pos, 
+                           detection_threshold);
+   return pos
+end
+
+function opencv24.DrawFAST(im, pos, r, g, b)
+   r = r or 1
+   g = g or 0
+   b = b or 0
+   require 'draw'
+   for i = 1,pos:size(1) do
+      local x   = pos[i][1]
+      local y   = pos[i][2]
+      local rad = pos[i][3]
+      local ang = pos[i][4]
+      draw.circle(im, x, y, rad, r, g, b)
+      draw.line(im, x, y, 
+                x+rad*math.cos(ang), y+rad*math.sin(ang), 
+                r, g, b)
+   end
 end
 
 --------------------------------------------------------------------------------
@@ -296,4 +321,15 @@ function opencv24.FREAK_testme()
    end
    image.display{image=disp, zoom=1}
    opencv24.DeleteFREAK(iFREAK)
+end
+
+function opencv24.FAST_testme()
+   local im    = image.lena()
+   local timer = torch.Timer()
+   local t0    = timer:time().real
+   local pos   = opencv24.ComputeFAST(im,40)
+   local t1    = timer:time().real
+   print("FAST : ", t1-t0)
+   opencv24.DrawFAST(im,pos)
+   image.display{image=im, zoom=1}
 end

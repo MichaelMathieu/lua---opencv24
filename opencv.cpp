@@ -165,6 +165,35 @@ static int TrainFREAK(lua_State* L) {
   return 0;
 }
 
+// Just compute the FAST keypoints
+static int ComputeFAST(lua_State* L) {
+  setLuaState(L);
+  Tensor<ubyte>         im        = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<float>         positions = FromLuaStack<Tensor<float> >(2);
+  float       keypoints_threshold = FromLuaStack<float>(3);
+
+  matb im_cv_gray;
+  if (im.nDimension() == 3) //color images
+    cvtColor(TensorToMat3b(im), im_cv_gray, CV_BGR2GRAY);
+  else
+    im_cv_gray = TensorToMat(im);
+
+  // keypoints
+  vector<KeyPoint> keypoints;
+  FAST(im_cv_gray, keypoints, keypoints_threshold, true);
+  
+  // output
+  positions.resize(keypoints.size(), 4);
+  for (size_t i = 0; i < keypoints.size(); ++i) {
+    const KeyPoint & kpt = keypoints[i];
+    positions(i, 0) = kpt.pt.x;
+    positions(i, 1) = kpt.pt.y;
+    positions(i, 2) = kpt.size;
+    positions(i, 3) = kpt.angle;
+  }
+  
+  return 0;
+}
 inline size_t HammingDistance(unsigned long long int* p1, unsigned long long int* p2,
 			      size_t len) {
   size_t dist = 0;
@@ -225,12 +254,13 @@ static int MatchFREAK(lua_State* L) {
 
 static const luaL_reg libopencv24_init [] =
   {
-    {"TrackPoints", TrackPoints},
-    {"CreateFREAK", CreateFREAK},
-    {"DeleteFREAK", DeleteFREAK},
+    {"TrackPoints",  TrackPoints},
+    {"CreateFREAK",  CreateFREAK},
+    {"DeleteFREAK",  DeleteFREAK},
     {"ComputeFREAK", ComputeFREAK},
-    {"TrainFREAK", TrainFREAK},
-    {"MatchFREAK", MatchFREAK},
+    {"TrainFREAK",   TrainFREAK},
+    {"MatchFREAK",   MatchFREAK},
+    {"ComputeFAST",  ComputeFAST}, 
     {NULL, NULL}
   };
 
