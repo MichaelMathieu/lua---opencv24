@@ -183,13 +183,14 @@ static int ComputeFAST(lua_State* L) {
   FAST(im_cv_gray, keypoints, keypoints_threshold, true);
   
   // output
-  positions.resize(keypoints.size(), 4);
+  positions.resize(keypoints.size(), 5);
   for (size_t i = 0; i < keypoints.size(); ++i) {
     const KeyPoint & kpt = keypoints[i];
     positions(i, 0) = kpt.pt.x;
     positions(i, 1) = kpt.pt.y;
     positions(i, 2) = kpt.size;
     positions(i, 3) = kpt.angle;
+    positions(i, 4) = kpt.response;
   }
   
   return 0;
