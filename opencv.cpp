@@ -96,6 +96,34 @@ static int DeleteFREAK(lua_State* L) {
   return 0;
 }
 
+static int ComputeFREAKfromKeyPoints(lua_State* L){
+  setLuaState(L);
+  Tensor<float>         im        = FromLuaStack<Tensor<float> >(1);
+  Tensor<unsigned char> descs     = FromLuaStack<Tensor<unsigned char> >(2);
+  Tensor<float>         positions = FromLuaStack<Tensor<float> >(3);
+  int                   iFREAK    = FromLuaStack<int>(5);
+
+  matb im_cv_gray;
+  if (im.nDimension() == 3) //color images
+    cvtColor(TensorToMat3b(im), im_cv_gray, CV_BGR2GRAY);
+  else
+    im_cv_gray = TensorToMat(im);
+
+  vector<KeyPoint> keypoints (positions->size[0]);
+  for (size_t i = 0; i < keypoints.size(); ++i) {
+    const KeyPoint & kpt = keypoints[i];
+    kpt.pt.x = THTensor_(get2d)(positions,i,0);
+    kpt.pt.y = THTensor_(get2d)(positions,i,1);
+  }
+  Mat descs_cv;
+  freak.compute(im_cv_gray, keypoints, descs_cv);
+  
+  descs.resize(descs_cv.size().height, descs_cv.size().width);
+  descs_cv.copyTo(TensorToMat(descs));
+  
+  return 0; 
+}
+
 static int ComputeFREAK(lua_State* L) {
   setLuaState(L);
   Tensor<ubyte>         im        = FromLuaStack<Tensor<ubyte> >(1);
@@ -259,6 +287,7 @@ static const luaL_reg libopencv24_init [] =
     {"CreateFREAK",  CreateFREAK},
     {"DeleteFREAK",  DeleteFREAK},
     {"ComputeFREAK", ComputeFREAK},
+    {"ComputeFREAKfromKeyPoints", ComputeFREAKfromKeyPoints},
     {"TrainFREAK",   TrainFREAK},
     {"MatchFREAK",   MatchFREAK},
     {"ComputeFAST",  ComputeFAST}, 

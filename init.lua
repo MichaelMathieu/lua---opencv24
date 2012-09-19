@@ -152,6 +152,15 @@ function opencv24.DeleteFREAK(iFREAK)
    libopencv24.DeleteFREAK(iFREAK)
 end
 
+function opencv24.ComputeFREAKfromKeyPoints(im, kp, iFREAK)
+   local freaks = {}
+   freaks.descs = torch.ByteTensor()
+   freaks.pos   = kp
+   libopencv24.ComputeFREAKfromKeyPoints(opencv24.TH2CVImage(im), 
+                                         freaks.descs, freaks.pos,
+                                         detection_threshold, iFREAK);
+   return freaks
+end
 
 function opencv24.ComputeFREAK(im, detection_threshold, iFREAK)
    local freaks = {}
