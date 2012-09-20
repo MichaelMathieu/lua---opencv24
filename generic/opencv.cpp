@@ -129,8 +129,9 @@ static const luaL_reg libopencv24_(Main__) [] = {
 };
 
 LUA_EXTERNC DLL_EXPORT int libopencv24_(Main_init) (lua_State *L) {
-  luaT_pushmetaclass(L, torch_(Tensor_id));
+  luaT_pushmetatable(L, torch_Tensor);
   luaT_registeratname(L, libopencv24_(Main__), "libopencv24");
+  lua_pop(L,1);
   return 1;
 }
 

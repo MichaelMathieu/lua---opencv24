@@ -39,7 +39,7 @@ MAKE_FROM_LUA_STACK_NUMBER_TEMPLATE(std::string, lua_tostring)
 
 #define MAKE_FROM_LUA_STACK_TENSOR_TEMPLATE(type, typestring)		\
   template<> inline TH::Tensor<type> FromLuaStack<TH::Tensor<type> >(lua_State* L, int i) { \
-    return TH::Tensor<type>((TH::Types<type>::CTensor*)luaT_checkudata(L, i, luaT_checktypename2id(L, typestring))); \
+    return TH::Tensor<type>((TH::Types<type>::CTensor*)luaT_checkudata(L, i, luaT_typenameid(L, typestring))); \
   }
 MAKE_FROM_LUA_STACK_TENSOR_TEMPLATE(float, "torch.FloatTensor")
 MAKE_FROM_LUA_STACK_TENSOR_TEMPLATE(double, "torch.DoubleTensor")

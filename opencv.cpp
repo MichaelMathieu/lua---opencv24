@@ -98,7 +98,7 @@ static int DeleteFREAK(lua_State* L) {
 
 static int ComputeFREAKfromKeyPoints(lua_State* L){
   setLuaState(L);
-  Tensor<float>         im        = FromLuaStack<Tensor<float> >(1);
+  Tensor<ubyte>         im        = FromLuaStack<Tensor<ubyte> >(1);
   Tensor<unsigned char> descs     = FromLuaStack<Tensor<unsigned char> >(2);
   Tensor<float>         positions = FromLuaStack<Tensor<float> >(3);
   int                   iFREAK    = FromLuaStack<int>(5);
@@ -109,13 +109,16 @@ static int ComputeFREAKfromKeyPoints(lua_State* L){
   else
     im_cv_gray = TensorToMat(im);
 
-  vector<KeyPoint> keypoints (positions->size[0]);
+  cout << positions.size() << endl;
+  
+  vector<KeyPoint> keypoints (positions.size()[0]);
   for (size_t i = 0; i < keypoints.size(); ++i) {
-    const KeyPoint & kpt = keypoints[i];
-    kpt.pt.x = THTensor_(get2d)(positions,i,0);
-    kpt.pt.y = THTensor_(get2d)(positions,i,1);
+    KeyPoint & kpt = keypoints[i];
+    kpt.pt.x = positions(i,0);
+    kpt.pt.y = positions(i,1);
   }
   Mat descs_cv;
+  FREAK & freak = *(freaks_g[iFREAK]);
   freak.compute(im_cv_gray, keypoints, descs_cv);
   
   descs.resize(descs_cv.size().height, descs_cv.size().width);
@@ -277,9 +280,9 @@ static int MatchFREAK(lua_State* L) {
 //
 
 
-#define torch_(NAME) TH_CONCAT_3(torch_, Real, NAME)
-#define torch_string_(NAME) TH_CONCAT_STRING_3(torch., Real, NAME)
-#define libopencv24_(NAME) TH_CONCAT_3(libopencv24_, Real, NAME)
+#define torch_(NAME)        TH_CONCAT_3(torch_, Real, NAME)
+#define torch_Tensor        TH_CONCAT_STRING_3(torch.,Real,Tensor)
+#define libopencv24_(NAME)  TH_CONCAT_3(libopencv24_, Real, NAME)
 
 static const luaL_reg libopencv24_init [] =
   {
@@ -294,8 +297,6 @@ static const luaL_reg libopencv24_init [] =
     {NULL, NULL}
   };
 
-static const void* torch_FloatTensor_id = NULL;
-static const void* torch_DoubleTensor_id = NULL;
 
 #include "generic/opencv.cpp"
 #include "THGenerateFloatTypes.h"
@@ -304,9 +305,6 @@ LUA_EXTERNC DLL_EXPORT int luaopen_libopencv24(lua_State *L)
 {
   luaL_register(L, "libopencv24", libopencv24_init);
   
-  torch_FloatTensor_id = luaT_checktypename2id(L, "torch.FloatTensor");
-  torch_DoubleTensor_id = luaT_checktypename2id(L, "torch.DoubleTensor");
-
   libopencv24_FloatMain_init(L);
   libopencv24_DoubleMain_init(L);
   
