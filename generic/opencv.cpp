@@ -117,14 +117,52 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
   return 0;
 }
 
+static int libopencv24_(CornerHarris)(lua_State *L) {
+  setLuaState(L);
+  Tensor<ubyte> src  = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<real>  dst  = FromLuaStack<Tensor<real > >(2);
+  int     blocksize  = FromLuaStack<int   >(3);
+  int         ksize  = FromLuaStack<int   >(4);
+  double          k  = FromLuaStack<double>(5);
+  int    borderType  = BORDER_REPLICATE;
+  
+  matb src_cv_gray;
+  if (src.nDimension() == 3) { //color images
+    cvtColor(TensorToMat3b(src), src_cv_gray, CV_BGR2GRAY);
+  } else {
+    src_cv_gray = TensorToMat(src);
+  }
+
+#ifdef TH_REAL_IS_FLOAT  
+  Mat dst_cv = TensorToMat(dst);
+#else
+  int h = src_cv_gray.size().height, w = src_cv_gray.size().width;
+  Mat dst_cv(h, w, CV_32FC2);
+#endif
+
+  /* cornerHarris(InputArray src,
+     OutputArray dst,
+     int blockSize,
+     int ksize, double k, int borderType=BORDER_DEFAULT ) */
+  cornerHarris(src_cv_gray,dst_cv,blocksize,ksize,k,borderType);
+
+#ifndef TH_REAL_IS_FLOAT
+  for (int i = 0; i < h; ++i)
+    for (int j = 0; j < w; ++j)
+      *(Vec2f*)(&(dst(i, j, 0))) = dst_cv.at<Vec2f>(i, j);
+#endif
+
+  return 0;
+}
 //============================================================
 // Register functions in LUA
 //
 
 static const luaL_reg libopencv24_(Main__) [] = {
-  {"TH2CVImage", libopencv24_(TH2CVImage)},
-  {"CV2THImage", libopencv24_(CV2THImage)},
+  {"TH2CVImage",       libopencv24_(TH2CVImage)},
+  {"CV2THImage",       libopencv24_(CV2THImage)},
   {"DenseOpticalFlow", libopencv24_(DenseOpticalFlow)},
+  {"CornerHarris",     libopencv24_(CornerHarris)},
   {NULL, NULL}  /* sentinel */
 };
 

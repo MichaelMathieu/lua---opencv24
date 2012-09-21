@@ -116,19 +116,44 @@ function opencv24.DenseOpticalFlow(...)
       {arg='pyr_scale', type='number', default=0.5,
        help='Ratio between 2 successive pyramid scales'},
       {arg='levels', type='number', default=5, help='Pyramid depth'},
-      {arg='winsize', type='number', default=11, help='Averaging window size'},
-      {arg='iterations', type='number', default=20, help='Number of iteration at each level'},
+      {arg='winsize', type='number', default=11, 
+       help='Averaging window size'},
+      {arg='iterations', type='number', default=20, 
+       help='Number of iteration at each level'},
       {arg='poly_n', type='number', default=5,
        help='Size of the pixel neighborhood used to find polynomial expansion in each pixel'},
       {arg='poly_sigma', type='number', default=1.1,
        help='Size of the pixel neighborhood used to find polynomial expansion in each pixel. For poly_n=5 , you can set poly_sigma=1.1 . For poly_n=7 , a good value would be poly_sigma=1.5'})
-   local flow = torch.Tensor(im1:size(2), im1:size(3), 2)
+   local flow = torch.Tensor(self.im1:size(2), self.im1:size(3), 2)
    local im1_cv = opencv24.TH2CVImage(self.im1)
    local im2_cv = opencv24.TH2CVImage(self.im2)
-   flow.libopencv24.DenseOpticalFlow(im1_cv, im2_cv, flow, self.pyr_scale, self.levels,
-				     self.winsize, self.iterations, self.poly_n,
-				     self.poly_sigma)
+   flow.libopencv24.DenseOpticalFlow(im1_cv, im2_cv, flow, 
+                                     self.pyr_scale, self.levels,
+				     self.winsize, self.iterations, 
+                                     self.poly_n, self.poly_sigma)
    return flow
+end
+
+--------------------------------------------------------------------------------
+-- CornerHarris
+--
+
+function opencv24.CornerHarris(...)
+   local self = {}
+   xlua.unpack_class(
+      self, {...}, 'opencv24.CornerHarris', help_desc,
+      {arg='im', type='torch.Tensor', help='image'},
+      {arg='blocksize', type='number', default=9, 
+       help='Neighborhood size (See. opencv  cornerEigenValsAndVecs())'},
+      {arg='ksize', type='number', default=3, 
+       help='Aperture parameter for the Sobel() operator.'},
+      {arg='k', type='number', default=0.04, 
+       help='Harris detector free parameter.'})
+   local out = torch.Tensor(self.im:size(2), self.im:size(3))
+   local im_cv = opencv24.TH2CVImage(self.im)
+   out.libopencv24.CornerHarris(im_cv, out, 
+                                self.blocksize,self.ksize,self.k)
+   return out
 end
 
 --------------------------------------------------------------------------------
@@ -341,4 +366,15 @@ function opencv24.FAST_testme()
    print("FAST : ", t1-t0)
    opencv24.DrawFAST(im,pos)
    image.display{image=im, zoom=1}
+end
+
+function opencv24.CornerHarris_testme()
+   local im    = image.lena()
+   local timer = torch.Timer()
+   local t0    = timer:time().real
+   local cmap  = opencv24.CornerHarris(im)
+   local t1    = timer:time().real
+   print("CornerHarris : ", t1-t0)
+   image.display{image=cmap, zoom=1}
+   return cmap
 end
