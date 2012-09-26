@@ -275,6 +275,13 @@ static int MatchFREAK(lua_State* L) {
   return 1;
 }
 
+
+static int version (lua_State* L) {
+  printf("%d.%d.%d\n",
+         CV_MAJOR_VERSION, CV_MINOR_VERSION, CV_SUBMINOR_VERSION);
+  return 0;
+}
+
 //============================================================
 // Register functions in LUA
 //
@@ -294,6 +301,7 @@ static const luaL_reg libopencv24_init [] =
     {"TrainFREAK",   TrainFREAK},
     {"MatchFREAK",   MatchFREAK},
     {"ComputeFAST",  ComputeFAST}, 
+    {"Version",      version},
     {NULL, NULL}
   };
 

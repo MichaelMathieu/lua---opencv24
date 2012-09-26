@@ -15,6 +15,7 @@
 #include "THpp.hpp"
 
 #include<opencv/cv.h>
+#include "opencv2/nonfree/features2d.hpp"
 #include "common.hpp"
 
 using namespace TH;
@@ -117,6 +118,96 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
   return 0;
 }
 
+//============================================================
+// Detect Extract
+// 
+// -- use opencv functions to detect using goodfeatures (or Canny) and
+// extract a sparse set of features at those detected locations.
+//
+
+static int libopencv24_(DetectExtract)(lua_State *L) {
+  setLuaState(L);
+  Tensor<ubyte> img          = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<ubyte> mask         = FromLuaStack<Tensor<ubyte> >(2);
+  Tensor<real>  positions    = FromLuaStack<Tensor<real>  >(3); 
+  Tensor<real>  feat         = FromLuaStack<Tensor<real > >(4);
+  size_t        maxCorners   = FromLuaStack<size_t>        (5);
+  float         qualityLevel = FromLuaStack<float>         (6);
+  float         minDistance  = FromLuaStack<float>         (7);
+  int           blockSize    = FromLuaStack<int>           (8);
+  bool          useHarris    = FromLuaStack<bool>          (9);
+  float         k            = FromLuaStack<float>         (10);
+
+  int h,w;
+
+  matb img_cv_gray, mask_cv;
+  if (img.nDimension() == 3) { //color images
+    cvtColor(TensorToMat3b(img), img_cv_gray, CV_BGR2GRAY);
+  } else {
+    img_cv_gray = TensorToMat(img);
+  }
+  h = img_cv_gray.size().height;
+  w = img_cv_gray.size().width;
+  
+  if ((mask.nDimension() == 2) &&
+      (mask.size(0) == h) && (mask.size(1) == w)) {
+      mask_cv = TensorToMat(mask);
+  } else {
+    mask_cv = Mat();
+  }
+  
+#ifdef TH_REAL_IS_FLOAT  
+  Mat feat_cv = TensorToMat(feat);
+#else
+  Mat feat_cv(maxCorners, 128, CV_32FC2);
+#endif
+
+  vector<KeyPoint>         keyPoints;
+  Ptr<FeatureDetector>     detector;
+  Ptr<DescriptorExtractor> extractor;
+  printf("OK init\n");
+  
+  // detecting keypoints
+  detector = FeatureDetector::create("GFTT");
+  printf("OK Create detector\n");
+  detector->detect(img_cv_gray,keyPoints,mask_cv);
+  printf("OK Keypoints\n");
+  //cout << "KeyPoints: " << keyPoints.size() << endl;
+  // computing descriptors
+  extractor = DescriptorExtractor::create("ORB");
+  extractor->compute(img_cv_gray, keyPoints, feat_cv);
+  //cout << "Features: " << feat_cv.size() <<endl;
+  printf("OK Features\n");
+  positions.resize(keyPoints.size(), 2);
+  for (size_t i = 0; i < keyPoints.size(); ++i) {
+    const KeyPoint & kpt = keyPoints[i];
+    positions(i, 0) = kpt.pt.x;
+    positions(i, 1) = kpt.pt.y;
+  }
+  
+  if (0) {
+      vector<Point2f> keypoints;
+      goodFeaturesToTrack(img_cv_gray, keypoints,
+                          maxCorners, qualityLevel, minDistance,
+                          mask_cv, blockSize, useHarris, k);
+      // output
+      positions.resize(keypoints.size(), 2);
+      for (size_t i = 0; i < keypoints.size(); ++i) {
+    
+        const Point2f & kpt = keypoints[i];
+        positions(i, 0) = kpt.x;
+        positions(i, 1) = kpt.y;
+      }
+    } // good features
+#ifndef TH_REAL_IS_FLOAT
+  for (int i = 0; i < maxCorners; ++i)
+    for (int j = 0; j < 128; ++j)
+      *(Vec2f*)(&(feat(i, j, 0))) = feat_cv.at<Vec2f>(i, j);
+#endif
+  
+  return 0;
+}
+
 static int libopencv24_(CornerHarris)(lua_State *L) {
   setLuaState(L);
   Tensor<ubyte> src  = FromLuaStack<Tensor<ubyte> >(1);
@@ -162,6 +253,7 @@ static const luaL_reg libopencv24_(Main__) [] = {
   {"TH2CVImage",       libopencv24_(TH2CVImage)},
   {"CV2THImage",       libopencv24_(CV2THImage)},
   {"DenseOpticalFlow", libopencv24_(DenseOpticalFlow)},
+  {"DetectExtract",    libopencv24_(DetectExtract)},
   {"CornerHarris",     libopencv24_(CornerHarris)},
   {NULL, NULL}  /* sentinel */
 };

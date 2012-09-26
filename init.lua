@@ -157,6 +157,43 @@ function opencv24.CornerHarris(...)
 end
 
 --------------------------------------------------------------------------------
+-- CornerHarris
+--
+
+function opencv24.DetectExtract(...)
+   local self = {}
+   xlua.unpack_class(
+      self, {...}, 'opencv24.DetectExtract', help_desc,
+      {arg='im', type='torch.Tensor', help='image'},
+      {arg='mask', type='torch.Tensor',
+       help='mask areas where not to compute.'},
+      {arg='maxPoints', type='number', 
+       help='Maximum number of tracked points', default=500},
+      {arg='pointsQuality',type='number',
+       help='Minimum quality of trackedpoints',default=0.02},
+      {arg='pointsMinDistance', type='number',
+       help='Minumum distance between two tracked points', default=3.0},
+      {arg='blocksize', type='number', default=9, 
+       help='Neighborhood size (See. opencv  cornerEigenValsAndVecs())'},
+      {arg='useHarris', type='bool', default = false, 
+       help = 'Use Harris detector'},
+      {arg='k', type='number', default=0.04, 
+       help='Harris detector free parameter.'})
+   local positions = torch.Tensor(self.maxPoints, 2)
+   local feat      = torch.Tensor(self.maxPoints, 128)
+   local im_cv     = opencv24.TH2CVImage(self.im)
+   if not self.mask then
+      self.mask = torch.Tensor(2,2)
+   end
+   local mask_cv   = opencv24.TH2CVImage(self.mask)
+   feat.libopencv24.DetectExtract(im_cv, mask_cv, positions, feat, 
+                                       self.maxPoints, self.pointsQuality,
+                                       self.MinDistance, self.blocksize,
+                                       self.useHarris,self.k)
+   return positions,feat
+end
+
+--------------------------------------------------------------------------------
 -- FREAK
 --
 
@@ -258,6 +295,22 @@ function opencv24.DrawFAST(im, pos, r, g, b)
                 x+rad*math.cos(ang), y+rad*math.sin(ang), 
                 r, g, b)
    end
+end
+
+function opencv24.DrawPos(im, pos, size, r, g, b)
+   r = r or 1
+   g = g or 0
+   b = b or 0
+   require 'draw'
+   for i = 1,pos:size(1) do
+      local x   = pos[i][1]
+      local y   = pos[i][2]
+      draw.circle(im, x, y, size , r, g, b)
+   end
+end
+
+function opencv24.Version()
+   libopencv24.Version()
 end
 
 --------------------------------------------------------------------------------
@@ -377,4 +430,16 @@ function opencv24.CornerHarris_testme()
    print("CornerHarris : ", t1-t0)
    image.display{image=cmap, zoom=1}
    return cmap
+end
+
+function opencv24.DetectExtract_testme()
+   require 'draw'
+   local im = image.lena()
+   local timer = torch.Timer()
+   local pos, feat = 
+      opencv24.DetectExtract{im=im, maxPoints = 100}
+   print("DetectExtract : ", timer:time().real)
+   opencv24.DrawPos(im,pos,11)
+   image.display{image=im, zoom=1}
+   return pos, feat
 end
