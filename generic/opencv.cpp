@@ -125,19 +125,27 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
 // extract a sparse set of features at those detected locations.
 //
 
+
 static int libopencv24_(DetectExtract)(lua_State *L) {
   setLuaState(L);
   Tensor<ubyte> img          = FromLuaStack<Tensor<ubyte> >(1);
   Tensor<ubyte> mask         = FromLuaStack<Tensor<ubyte> >(2);
   Tensor<real>  positions    = FromLuaStack<Tensor<real>  >(3); 
   Tensor<real>  feat         = FromLuaStack<Tensor<real > >(4);
-  size_t        maxCorners   = FromLuaStack<size_t>        (5);
+  const char *  dtype        = lua_tostring(L,5);
+  const char *  etype        = lua_tostring(L,6);
+  size_t        maxPoints    = FromLuaStack<size_t>        (7);
+  printf("OK args\n");
+  string detectorType(dtype);
+  string extractorType(etype);
+  printf("OK string conversion: %s, %s\n",dtype,etype);
+  /*
   float         qualityLevel = FromLuaStack<float>         (6);
   float         minDistance  = FromLuaStack<float>         (7);
   int           blockSize    = FromLuaStack<int>           (8);
   bool          useHarris    = FromLuaStack<bool>          (9);
   float         k            = FromLuaStack<float>         (10);
-
+  */
   int h,w;
 
   matb img_cv_gray, mask_cv;
@@ -159,52 +167,71 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
 #ifdef TH_REAL_IS_FLOAT  
   Mat feat_cv = TensorToMat(feat);
 #else
-  Mat feat_cv(maxCorners, 128, CV_32FC2);
+  Mat feat_cv(maxPoints, 128, CV_32FC2);
 #endif
 
   vector<KeyPoint>         keyPoints;
   Ptr<FeatureDetector>     detector;
   Ptr<DescriptorExtractor> extractor;
-  printf("OK init\n");
+  printf("OK Init\n");
   
   // detecting keypoints
-  detector = FeatureDetector::create("GFTT");
+  // "FAST", "STAR", "SIFT", "SURF", "ORB",
+  // "MSER", "GFTT", "HARRIS", "Dense", "SimpleBlob",
+  // Also combined format: 
+  // "Grid" – GridAdaptedFeatureDetector,
+  // "Pyramid" – PyramidAdaptedFeatureDetector )
+  // for example: "GridFAST", "PyramidSTAR" .
+
+  detector = FeatureDetector::create(detectorType);
   printf("OK Create detector\n");
   detector->detect(img_cv_gray,keyPoints,mask_cv);
   printf("OK Keypoints\n");
-  //cout << "KeyPoints: " << keyPoints.size() << endl;
+  
+  // Sort the keypoints, return only the top maxPoints
+  sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
+  vector<KeyPoint>::const_iterator first = keyPoints.begin();
+  vector<KeyPoint>::const_iterator last = keyPoints.begin() + maxPoints;
+  vector<KeyPoint> topKeyPoints(first, last);
+  printf("OK Sort and Narrow\n");
+  
   // computing descriptors
-  extractor = DescriptorExtractor::create("ORB");
-  extractor->compute(img_cv_gray, keyPoints, feat_cv);
-  //cout << "Features: " << feat_cv.size() <<endl;
+  extractor = DescriptorExtractor::create(extractorType);
+  extractor->compute(img_cv_gray, topKeyPoints, feat_cv);
+  cout << "Features: " << feat_cv.rows << " x " << feat_cv.cols <<endl;
   printf("OK Features\n");
-  positions.resize(keyPoints.size(), 2);
-  for (size_t i = 0; i < keyPoints.size(); ++i) {
+
+  feat.resize(feat_cv.rows,feat_cv.cols);
+  positions.resize(maxPoints, 2);
+
+  for (size_t i = 0; i < maxPoints; ++i) {
     const KeyPoint & kpt = keyPoints[i];
     positions(i, 0) = kpt.pt.x;
     positions(i, 1) = kpt.pt.y;
+    printf("%f,",kpt.response);
   }
-  
-  if (0) {
-      vector<Point2f> keypoints;
-      goodFeaturesToTrack(img_cv_gray, keypoints,
-                          maxCorners, qualityLevel, minDistance,
-                          mask_cv, blockSize, useHarris, k);
-      // output
-      positions.resize(keypoints.size(), 2);
-      for (size_t i = 0; i < keypoints.size(); ++i) {
+  printf("\n");
+  // if (0) {
+  //     vector<Point2f> keypoints;
+  //     goodFeaturesToTrack(img_cv_gray, keypoints,
+  //                         maxCorners, qualityLevel, minDistance,
+  //                         mask_cv, blockSize, useHarris, k);
+  //     // output
+  //     positions.resize(keypoints.size(), 2);
+  //     for (size_t i = 0; i < keypoints.size(); ++i) {
     
-        const Point2f & kpt = keypoints[i];
-        positions(i, 0) = kpt.x;
-        positions(i, 1) = kpt.y;
-      }
-    } // good features
+  //       const Point2f & kpt = keypoints[i];
+  //       positions(i, 0) = kpt.x;
+  //       positions(i, 1) = kpt.y;
+  //     }
+  //   } // good features
+
 #ifndef TH_REAL_IS_FLOAT
-  for (int i = 0; i < maxCorners; ++i)
+  for (int i = 0; i < maxPoints; ++i)
     for (int j = 0; j < 128; ++j)
       *(Vec2f*)(&(feat(i, j, 0))) = feat_cv.at<Vec2f>(i, j);
 #endif
-  
+ 
   return 0;
 }
 

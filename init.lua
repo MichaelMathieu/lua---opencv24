@@ -167,6 +167,10 @@ function opencv24.DetectExtract(...)
       {arg='im', type='torch.Tensor', help='image'},
       {arg='mask', type='torch.Tensor',
        help='mask areas where not to compute.'},
+      {arg='detectorType', type="string",
+       help="GFTT etc.",default="GFTT"},
+      {arg='extractorType', type="string",
+       help="FREAK etc.",default="FREAK"},
       {arg='maxPoints', type='number', 
        help='Maximum number of tracked points', default=500},
       {arg='pointsQuality',type='number',
@@ -180,16 +184,15 @@ function opencv24.DetectExtract(...)
       {arg='k', type='number', default=0.04, 
        help='Harris detector free parameter.'})
    local positions = torch.Tensor(self.maxPoints, 2)
-   local feat      = torch.Tensor(self.maxPoints, 128)
+   local feat      = torch.Tensor(self.maxPoints, 128):fill(0)
    local im_cv     = opencv24.TH2CVImage(self.im)
    if not self.mask then
       self.mask = torch.Tensor(2,2)
    end
    local mask_cv   = opencv24.TH2CVImage(self.mask)
    feat.libopencv24.DetectExtract(im_cv, mask_cv, positions, feat, 
-                                       self.maxPoints, self.pointsQuality,
-                                       self.MinDistance, self.blocksize,
-                                       self.useHarris,self.k)
+                                  self.detectorType, self.extractorType,
+                                  self.maxPoints)
    return positions,feat
 end
 
@@ -432,12 +435,20 @@ function opencv24.CornerHarris_testme()
    return cmap
 end
 
-function opencv24.DetectExtract_testme()
+function opencv24.DetectExtract_testme(dtype,etype)
+   if not dtype then
+      dtype = "FAST"
+   end
+   if not etype then 
+      etype = "FREAK"
+   end
    require 'draw'
    local im = image.lena()
    local timer = torch.Timer()
    local pos, feat = 
-      opencv24.DetectExtract{im=im, maxPoints = 100}
+      opencv24.DetectExtract{im=im, maxPoints = 100,
+                             detectorType=dtype,
+                             extractorType=etype}
    print("DetectExtract : ", timer:time().real)
    opencv24.DrawPos(im,pos,11)
    image.display{image=im, zoom=1}

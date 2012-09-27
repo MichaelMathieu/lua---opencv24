@@ -275,6 +275,14 @@ static int MatchFREAK(lua_State* L) {
   return 1;
 }
 
+struct keyPointCompare {
+  bool operator ()(KeyPoint const& a, KeyPoint const& b) const {
+    if (a.response < b.response) return true;
+    if (a.response > b.response) return false;
+
+    return false;
+  }
+};
 
 static int version (lua_State* L) {
   printf("%d.%d.%d\n",
