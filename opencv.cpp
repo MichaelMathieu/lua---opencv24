@@ -275,18 +275,17 @@ static int MatchFREAK(lua_State* L) {
   return 1;
 }
 
+// function to sort the KeyPoints returned in DetectorExtractor
 struct keyPointCompare {
   bool operator ()(KeyPoint const& a, KeyPoint const& b) const {
-    if (a.response < b.response) return true;
-    if (a.response > b.response) return false;
-
-    return false;
+    if (a.response > b.response) return true;
+    if (a.response < b.response) return false; 
+    return true;
   }
 };
 
 static int version (lua_State* L) {
-  printf("%d.%d.%d\n",
-         CV_MAJOR_VERSION, CV_MINOR_VERSION, CV_SUBMINOR_VERSION);
+  printf("%s\n", CV_VERSION);
   return 0;
 }
 
