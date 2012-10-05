@@ -125,48 +125,36 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
 // extract a sparse set of features at those detected locations.
 //
 
-
 static int libopencv24_(DetectExtract)(lua_State *L) {
   setLuaState(L);
   Tensor<ubyte> img          = FromLuaStack<Tensor<ubyte> >(1);
-  Tensor<ubyte> mask         = FromLuaStack<Tensor<ubyte> >(2);
+  Tensor<real>  msk          = FromLuaStack<Tensor<real>  >(2);
   Tensor<real>  positions    = FromLuaStack<Tensor<real>  >(3); 
-  Tensor<real>  feat         = FromLuaStack<Tensor<real > >(4);
+  Tensor<real>  feat         = FromLuaStack<Tensor<real>  >(4);
   const char *  dtype        = lua_tostring(L,5);
   const char *  etype        = lua_tostring(L,6);
   size_t        maxPoints    = FromLuaStack<size_t>        (7);
-
+  cout << "OK" << endl;
   string detectorType(dtype);
   string extractorType(etype);
-  int h,w;
 
-  matb img_cv_gray, mask_cv;
+  Mat feat_cv;
+
+  vector<KeyPoint>         keyPoints;
+  Ptr<FeatureDetector>     detector;
+  Ptr<DescriptorExtractor> extractor;
+  //KeyPointsFilter          kpFilt;
+
+  size_t i,j,foundPts;
+
+  msk = msk.newContiguous();
+  
+  matb img_cv_gray;
   if (img.nDimension() == 3) { //color images
     cvtColor(TensorToMat3b(img), img_cv_gray, CV_BGR2GRAY);
   } else {
     img_cv_gray = TensorToMat(img);
   }
-  h = img_cv_gray.size().height;
-  w = img_cv_gray.size().width;
-  
-  if ((mask.nDimension() == 2) &&
-      (mask.size(0) == h) && (mask.size(1) == w)) {
-      mask_cv = TensorToMat(mask);
-  } else {
-    mask_cv = Mat();
-  }
-
-  Mat feat_cv;
-// #ifdef TH_REAL_IS_FLOAT  
-//   Mat feat_cv = TensorToMat(feat);
-// #else
-//   Mat feat_cv(maxPoints, 128, CV_32FC2);
-// #endif
-
-  vector<KeyPoint>         keyPoints;
-  Ptr<FeatureDetector>     detector;
-  Ptr<DescriptorExtractor> extractor;
-  KeyPointsFilter          kpFilt;
   
   // detecting keypoints
   // "FAST", "STAR", "SIFT", "SURF", "ORB",
@@ -176,23 +164,55 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   // "Pyramid" – PyramidAdaptedFeatureDetector )
   // for example: "GridFAST", "PyramidSTAR" .
 
+  cout << "Detector Type: " << detectorType << endl;
   detector = FeatureDetector::create(detectorType);
-  detector->detect(img_cv_gray,keyPoints,mask_cv);
-
+  // FIXME should be able to pass a msk_cv here but not working.
+  detector->detect(img_cv_gray,keyPoints);
+    
+  printf("OK Detector\n");
   if (keyPoints.size() < 1){
-    THError("No KeyPoints Found.");
+    cout << "No KeyPoints Found" << endl;
+    feat.resize(0);
+    positions.resize(0);
+    return 0;
   }
   // Sort the keypoints, return only the top maxPoints
-  /*
-  kpFilt.retainBest(keyPoints, maxPoints);
-  */
-  sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
-  vector<KeyPoint>::const_iterator first = keyPoints.begin();
-  vector<KeyPoint>::const_iterator last  =
-    keyPoints.begin() + min(keyPoints.size(), maxPoints);
-  vector<KeyPoint> topKeyPoints(first, last);
-  
-  
+  // Again this function does not work.
+  // kpFilt.retainBest(keyPoints, maxPoints);
+  //
+  if (maxPoints > 0){
+    foundPts = min(keyPoints.size(), maxPoints);
+  } else {
+    foundPts = keyPoints.size();
+  }
+  printf("OK nKeypoints: %ld of %ld\n",
+         (long)foundPts, (long)keyPoints.size());
+
+  // Mask isn't currently working in opencv... perhaps there is an
+  // issue with the type or sizes we use. For now: 
+  // knock out keypoints which aren't in the mask by setting value to zero
+  if ((msk.nDimension() == 2) &&
+      (msk.size(0) == img.size(0)) &&
+      (msk.size(1) == img.size(1))){
+    for(i=0;i<keyPoints.size();i++){
+      KeyPoint & kpt = keyPoints[i];
+      int mval = (int)msk(kpt.pt.x,kpt.pt.y);
+      if (mval == 0){
+        kpt.response = 0;
+      }
+    }
+    printf("OK filter with mask\n");
+  }
+  // Sort the keypoints by value (See keyPointsCompare function in
+  // element/code/opencv.c) the keypoints which fall outside the mask
+  // have been given a low value.
+
+  //sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
+
+  printf("OK sort\n");
+  keyPoints.resize(foundPts);
+
+  printf("OK resize %ld\n",(long)keyPoints.size());
   // computing descriptors
 
   /*
@@ -216,6 +236,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
            etype);
     extractor = new SurfDescriptorExtractor;
   }
+  printf("OK extractor type\n");
   /*
     } else if (extractorType.compare("OpponentSIFT") == 0) { 
     extractor = new OpponentSiftDescriptorExtractor;
@@ -224,32 +245,38 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
     } else if (extractorType.compare("FREAK") == 0) { 
     extractor = new FreakDescriptorExtractor;
   */
-
-  extractor->compute(img_cv_gray, topKeyPoints, feat_cv);
+  printf("KeyPoints.size() %ld\n",(long)keyPoints.size());
+  
+  extractor->compute(img_cv_gray, keyPoints, feat_cv);
   cout << "Features: " << feat_cv.rows << " x " << feat_cv.cols <<endl;
 
+  printf("OK Feat Extraction\n");
+  
   feat.resize(feat_cv.rows,feat_cv.cols);
-  positions.resize(maxPoints, 2);
-
-  for (size_t i = 0; i < maxPoints; ++i) {
-    const KeyPoint & kpt = topKeyPoints[i];
+  positions.resize(foundPts, 2);
+  printf("OK resize\n");
+  
+  for (i = 0; i < foundPts; ++i) {
+    const KeyPoint & kpt = keyPoints[i];
     positions(i, 0) = kpt.pt.x;
     positions(i, 1) = kpt.pt.y;
   }
-
-  // DEBUG
-  for(int i = 0; i < 1; i++){ //feat_cv.rows; i++){
-    for(int j = 0; j < feat_cv.cols; j++){
-      printf("%f, ",feat_cv.at<real>(i,j));
+  printf("OK keypoints\n");
+  
+  for(i = 0; i < (size_t)feat_cv.rows; i++){ 
+    for(j = 0; j < (size_t)feat_cv.cols; j++){
+      feat(i,j) = feat_cv.at<float>(i,j);
     }
-    printf("\n");
   }
-#ifndef TH_REAL_IS_FLOAT
-  for (int i = 0; i < feat_cv.rows; ++i)
-    for (int j = 0; j < feat_cv.cols; ++j)
-      *(Vec2f*)(&(feat(i, j, 0))) = feat_cv.at<Vec2f>(i, j);
-#endif
- 
+  printf("OK copy feat\n");
+  // DEBUG
+  for(j = 0; j < (size_t)feat_cv.cols; j++){
+    printf("%f, ", feat(0,j));
+  }
+  printf("\n");
+  
+  printf("OK convert data\n");
+  
   return 0;
 }
 

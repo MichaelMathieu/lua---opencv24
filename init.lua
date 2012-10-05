@@ -166,13 +166,14 @@ function opencv24.DetectExtract(...)
       self, {...}, 'opencv24.DetectExtract', help_desc,
       {arg='im', type='torch.Tensor', help='image'},
       {arg='mask', type='torch.Tensor',
-       help='mask areas where not to compute.'},
+       help='mask areas where not to compute.', 
+       default=torch.Tensor()},
       {arg='detectorType', type="string",
-       help="GFTT etc.",default="GFTT"},
+       help="GFTT etc.",default="FAST"},
       {arg='extractorType', type="string",
-       help="FREAK etc.",default="FREAK"},
+       help="FREAK etc.",default="SURF"},
       {arg='maxPoints', type='number', 
-       help='Maximum number of tracked points', default=500},
+       help='Maximum number of tracked points', default=0},
       {arg='pointsQuality',type='number',
        help='Minimum quality of trackedpoints',default=0.02},
       {arg='pointsMinDistance', type='number',
@@ -184,13 +185,9 @@ function opencv24.DetectExtract(...)
       {arg='k', type='number', default=0.04, 
        help='Harris detector free parameter.'})
    local positions = torch.Tensor(self.maxPoints, 2)
-   local feat      = torch.Tensor(self.maxPoints, 128):fill(0)
+   local feat      = torch.Tensor(self.maxPoints, 128)
    local im_cv     = opencv24.TH2CVImage(self.im)
-   if not self.mask then
-      self.mask = torch.Tensor(2,2)
-   end
-   local mask_cv   = opencv24.TH2CVImage(self.mask)
-   feat.libopencv24.DetectExtract(im_cv, mask_cv, positions, feat, 
+   feat.libopencv24.DetectExtract(im_cv, self.mask, positions, feat, 
                                   self.detectorType, self.extractorType,
                                   self.maxPoints)
    return positions,feat
@@ -440,17 +437,31 @@ function opencv24.DetectExtract_testme(dtype,etype)
       dtype = "FAST"
    end
    if not etype then 
-      etype = "FREAK"
+      etype = "SURF"
    end
-   require 'draw'
+   -- require 'draw'
    local im = image.lena()
+   local m  = torch.Tensor(im:size(2),im:size(3)):fill(0)
+   m:narrow(1,100,200):narrow(2,100,200):fill(1)
    local timer = torch.Timer()
    local pos, feat = 
-      opencv24.DetectExtract{im=im, maxPoints = 100,
+      opencv24.DetectExtract{im=im[1], maxPoints = 100,
+                             mask=m,
+                             detectorType=dtype,
+                             extractorType=etype}
+   local pos2, feat2 = 
+      opencv24.DetectExtract{im=im[1], 
                              detectorType=dtype,
                              extractorType=etype}
    print("DetectExtract : ", timer:time().real)
-   opencv24.DrawPos(im,pos,11)
+   -- opencv24.DrawPos(im,pos,11)
+   im[1]:cmul(m)
+   for i = 1,pos:size(1) do 
+      im[1][pos[i][2]][pos[i][1]] = 1 
+   end   
+   for i = 1,pos2:size(1) do 
+      im[2][pos2[i][2]][pos2[i][1]] = 1 
+   end   
    image.display{image=im, zoom=1}
    return pos, feat
 end
