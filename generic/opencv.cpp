@@ -145,7 +145,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   Ptr<DescriptorExtractor> extractor;
   //KeyPointsFilter          kpFilt;
 
-  size_t i,j,foundPts;
+  size_t i,j,foundPts,maskedKeyPoints;
 
   msk = msk.newContiguous();
   
@@ -174,30 +174,46 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
     positions.resize(0);
     return 0;
   }
+  
+  
   // Sort the keypoints, return only the top maxPoints
   // Again this function does not work.
   // kpFilt.retainBest(keyPoints, maxPoints);
   //
-  if (maxPoints > 0){
-    foundPts = min(keyPoints.size(), maxPoints);
-  } else {
-    foundPts = keyPoints.size();
-  }
 
+  maskedKeyPoints = 0;
+  
   // Mask isn't currently working in opencv... perhaps there is an
   // issue with the type or sizes we use. For now: 
   // knock out keypoints which aren't in the mask by setting value to zero
+  
   if ((msk.nDimension() == 2) &&
       (msk.size(0) == img.size(0)) &&
       (msk.size(1) == img.size(1))){
     for(i=0;i<keyPoints.size();i++){
       KeyPoint & kpt = keyPoints[i];
-      int mval = (int)msk(kpt.pt.x,kpt.pt.y);
+      int mval = (int)msk(kpt.pt.y,kpt.pt.x);
       if (mval == 0){
         kpt.response = 0;
+        maskedKeyPoints++; // keep track of number of points not to return
       }
     }
   }
+  
+  if (maxPoints > 0){
+    foundPts = min(keyPoints.size()-maskedKeyPoints, maxPoints);
+  } else {
+    foundPts = keyPoints.size()-maskedKeyPoints;
+  }
+
+  if (foundPts <= 0) {
+    cout << "No KeyPoints Found" << endl;
+    feat.resize(0);
+    positions.resize(0);
+    return 0;
+  }
+  
+  
   // Sort the keypoints by value (See keyPointsCompare function in
   // element/code/opencv.c) the keypoints which fall outside the mask
   // have been given a low value.
@@ -205,7 +221,8 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
 
   keyPoints.resize(foundPts);
-
+  cout << "Found " << keyPoints.size() << " keypoints" << endl;
+  
   // computing descriptors
 
   /*

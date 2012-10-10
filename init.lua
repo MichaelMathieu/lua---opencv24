@@ -443,7 +443,7 @@ function opencv24.DetectExtract_testme(dtype,etype)
    local im = image.lena()
    -- make a simple mask
    local m  = torch.Tensor(im:size(2),im:size(3)):fill(0)
-   m:narrow(1,100,200):narrow(2,100,200):fill(1)
+   m:narrow(1,150,250):narrow(2,100,100):fill(1)
    local timer = torch.Timer()
    local pos, feat = 
       opencv24.DetectExtract{im=im[1], maxPoints = 100,
@@ -451,7 +451,7 @@ function opencv24.DetectExtract_testme(dtype,etype)
                              detectorType=dtype,
                              extractorType=etype}
    local d1 = timer:time().real
-   print("DetectExtract (mask): ", d1)
+   print("DetectExtract (mask)   : ", d1)
    local pos2, feat2 = 
       opencv24.DetectExtract{im=im[1], maxPoints = 100,
                              detectorType=dtype,
