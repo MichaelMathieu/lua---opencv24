@@ -277,11 +277,8 @@ static int MatchFREAK(lua_State* L) {
 
 // function to sort the KeyPoints returned in DetectorExtractor
 struct keyPointCompare {
-  bool operator ()(KeyPoint const& a, KeyPoint const& b) const {
-    //cout << a.response << "<=>" << b.response << endl;
-    if (a.response > b.response) return true;
-    if (a.response < b.response) return false; 
-    return true;
+  bool operator ()(const KeyPoint & a, const KeyPoint & b) const {
+    return a.response>b.response;
   }
 };
 

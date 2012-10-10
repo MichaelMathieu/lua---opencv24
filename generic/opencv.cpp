@@ -137,7 +137,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   cout << "OK" << endl;
   string detectorType(dtype);
   string extractorType(etype);
-
+  
   Mat feat_cv;
 
   vector<KeyPoint>         keyPoints;
@@ -207,7 +207,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   // element/code/opencv.c) the keypoints which fall outside the mask
   // have been given a low value.
 
-  //sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
+  sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
 
   printf("OK sort\n");
   keyPoints.resize(foundPts);
