@@ -124,9 +124,9 @@ function opencv24.DenseOpticalFlow(...)
        help='Size of the pixel neighborhood used to find polynomial expansion in each pixel'},
       {arg='poly_sigma', type='number', default=1.1,
        help='Size of the pixel neighborhood used to find polynomial expansion in each pixel. For poly_n=5 , you can set poly_sigma=1.1 . For poly_n=7 , a good value would be poly_sigma=1.5'})
-   local flow = torch.Tensor(self.im1:size(2), self.im1:size(3), 2)
    local im1_cv = opencv24.TH2CVImage(self.im1)
    local im2_cv = opencv24.TH2CVImage(self.im2)
+   local flow = torch.Tensor(im1_cv:size(1), im1_cv:size(2), 2)
    flow.libopencv24.DenseOpticalFlow(im1_cv, im2_cv, flow, 
                                      self.pyr_scale, self.levels,
 				     self.winsize, self.iterations, 

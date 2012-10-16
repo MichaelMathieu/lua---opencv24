@@ -108,11 +108,12 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
 
   calcOpticalFlowFarneback(im1_cv_gray, im2_cv_gray, flow_cv, pyr_scale, levels, winsize,
 			   iterations, poly_n, poly_sigma, 0);
-
+  
 #ifndef TH_REAL_IS_FLOAT
+  flow.newContiguous();
   for (int i = 0; i < h; ++i)
     for (int j = 0; j < w; ++j)
-      *(Vec2f*)(&(flow(i, j, 0))) = flow_cv.at<Vec2f>(i, j);
+      reinterpret_cast<Vec2f&>(flow(i, j, 0)) = flow_cv.at<Vec2f>(i, j);
 #endif
   
   return 0;

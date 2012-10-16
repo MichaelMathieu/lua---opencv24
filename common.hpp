@@ -83,7 +83,9 @@ Mat TensorToMat(TH::Tensor<Treal> & T) {
   case 2:
     return Mat(T.size(0), T.size(1), DataType<Treal>::type, (void*)T.data());
   case 3:
-    if (T.size(2) == 3) {
+    if (T.size(2) == 2) {
+      return Mat(T.size(0), T.size(1), DataType<Vec<Treal, 2> >::type, (void*)T.data());
+    } else if (T.size(2) == 3) {
       return Mat(T.size(0), T.size(1), DataType<Vec<Treal, 3> >::type, (void*)T.data());
     }
   default:
