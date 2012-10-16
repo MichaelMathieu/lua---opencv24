@@ -33,7 +33,14 @@ namespace TH {
   private:
     CTensor* ctensor;
     mutable bool hasToBeFreed;
+    inline void freeCPP() {
+      if (hasToBeFreed)
+	this->free();
+      hasToBeFreed = false;
+    }      
   public: // constructor etc.
+    inline Tensor()
+      :ctensor(THTensor_(new)()), hasToBeFreed(true) {};
     inline Tensor(CTensor* ctensor, bool hasToBeFreed = false)
       :ctensor(ctensor), hasToBeFreed(hasToBeFreed) {};
     inline Tensor(const Tensor & src)
@@ -42,7 +49,7 @@ namespace TH {
 	retain();
     };
     inline ~Tensor() {
-      if (hasToBeFreed) this->free();
+      freeCPP();
     };
     inline Tensor & operator=(const Tensor & src) {
       if (&src != this) {
@@ -105,7 +112,8 @@ namespace TH {
       return ctensor->size[i];
     };
 
-    inline void resize(long s0, long s1 = -1, long s2 = -1, long s3 = -1, long s4 = -1) {
+    inline void resize(long s0, long s1 = -1, long s2 = -1,
+		       long s3 = -1, long s4 = -1) {
       if (s1 == -1)
 	THTensor_(resize1d)(ctensor, s0);
       else if (s2 == -1)
@@ -118,12 +126,24 @@ namespace TH {
 	THTensor_(resize5d)(ctensor, s0, s1, s2, s3, s4);
     }
     
+    inline Tensor<realT> newNarrow(int dimension, long firstIndex, long size) const {
+      return Tensor(THTensor_(newNarrow)(ctensor, dimension, firstIndex, size), true);
+    }
+    inline Tensor<realT> newSelect(int dimension, long sliceIndex) const {
+      return Tensor(THTensor_(newSelect)(ctensor, dimension, sliceIndex), true);
+    }
+    inline Tensor<realT> newTranspose(int dimension1, int dimension2) const {
+      return Tensor(THTensor_(newTranspose)(ctensor, dimension1, dimension2), true);
+    }
+    inline Tensor<realT> newUnfold(int dimension, long size, long step) const {
+      return Tensor(THTensor_(newUnfold)(ctensor, dimension, size, step), true);
+    }
+    
     inline bool isContiguous() const {
       return (bool)(THTensor_(isContiguous)(ctensor));
     };
     inline Tensor newContiguous() const {
-      hasToBeFreed = true;
-      return THTensor_(newContiguous)(ctensor);
+      return Tensor(THTensor_(newContiguous)(ctensor), true);
     };
 
     // accessors

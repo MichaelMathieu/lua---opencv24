@@ -78,7 +78,7 @@ static int libopencv24_(CV2THImage)(lua_State* L) {
 // Dense Optical Flow
 //
 
-static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
+static int libopencv24_(DenseOpticalFlowFarnebach)(lua_State *L) {
   setLuaState(L);
   Tensor<ubyte> im1  = FromLuaStack<Tensor<ubyte> >(1);
   Tensor<ubyte> im2  = FromLuaStack<Tensor<ubyte> >(2);
@@ -89,32 +89,28 @@ static int libopencv24_(DenseOpticalFlow)(lua_State *L) {
   int    iterations  = FromLuaStack<int   >(7);
   int    poly_n      = FromLuaStack<int   >(8);
   double poly_sigma  = FromLuaStack<double>(9);
+  int    use_previous= FromLuaStack<bool  >(10);
   
-  matb im1_cv_gray, im2_cv_gray;
-  if (im1.nDimension() == 3) { //color images
-    cvtColor(TensorToMat3b(im1), im1_cv_gray, CV_BGR2GRAY);
-    cvtColor(TensorToMat3b(im2), im2_cv_gray, CV_BGR2GRAY);
-  } else {
-    im1_cv_gray = TensorToMat(im1);
-    im2_cv_gray = TensorToMat(im2);
-  }
+  matb im1_cv_gray = TensorToMat(im1);
+  matb im2_cv_gray = TensorToMat(im2);
 
-#ifdef TH_REAL_IS_FLOAT  
-  Mat flow_cv = TensorToMat(flow);
-#else
   int h = im1_cv_gray.size().height, w = im1_cv_gray.size().width;
   Mat flow_cv(h, w, CV_32FC2);
-#endif
+  if (use_previous)
+    for (int i = 1; i < h; ++i)
+      for (int j = 1; j < w; ++j)
+	flow_cv.at<Vec2f>(i,j) = Vec2f(flow(0,i,j), flow(1,i,j));
 
-  calcOpticalFlowFarneback(im1_cv_gray, im2_cv_gray, flow_cv, pyr_scale, levels, winsize,
-			   iterations, poly_n, poly_sigma, 0);
+  calcOpticalFlowFarneback(im1_cv_gray, im2_cv_gray, flow_cv, pyr_scale, levels,
+			   winsize, iterations, poly_n, poly_sigma,
+			   use_previous*OPTFLOW_USE_INITIAL_FLOW);
   
-#ifndef TH_REAL_IS_FLOAT
-  flow.newContiguous();
   for (int i = 0; i < h; ++i)
-    for (int j = 0; j < w; ++j)
-      reinterpret_cast<Vec2f&>(flow(i, j, 0)) = flow_cv.at<Vec2f>(i, j);
-#endif
+    for (int j = 0; j < w; ++j) {
+      Vec2f & v = flow_cv.at<Vec2f>(i, j);
+      flow(0, i, j) = v[0];
+      flow(1, i, j) = v[1];
+    }
   
   return 0;
 }
@@ -318,7 +314,7 @@ static int libopencv24_(CornerHarris)(lua_State *L) {
 static const luaL_reg libopencv24_(Main__) [] = {
   {"TH2CVImage",       libopencv24_(TH2CVImage)},
   {"CV2THImage",       libopencv24_(CV2THImage)},
-  {"DenseOpticalFlow", libopencv24_(DenseOpticalFlow)},
+  {"DenseOpticalFlowFarnebach", libopencv24_(DenseOpticalFlowFarnebach)},
   {"DetectExtract",    libopencv24_(DetectExtract)},
   {"CornerHarris",     libopencv24_(CornerHarris)},
   {NULL, NULL}  /* sentinel */

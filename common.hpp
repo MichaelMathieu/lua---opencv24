@@ -73,16 +73,21 @@ mat3b TensorToMat3b<ubyte>(const TH::Tensor<ubyte> & im);
 
 template<typename Treal>
 Mat TensorToMat(TH::Tensor<Treal> & T) {
-  T = T.newContiguous();
   const int n = T.nDimension();
   switch(n) {
   case 0:
     return Mat(0, 0, DataType<Treal>::type);
   case 1:
-    return Mat(T.size(0), 1, DataType<Treal>::type, (void*)T.data());
+    return Mat(T.size(0), 1, DataType<Treal>::type, (void*)T.data(),
+	       T.stride(0)*sizeof(Treal));
   case 2:
-    return Mat(T.size(0), T.size(1), DataType<Treal>::type, (void*)T.data());
+    if (T.stride(1) != 1)
+      T = T.newContiguous();
+    return Mat(T.size(0), T.size(1), DataType<Treal>::type, (void*)T.data(),
+	       T.stride(0)*sizeof(Treal));
   case 3:
+    if (T.stride(1) != T.size(2))
+      T = T.newContiguous();
     if (T.size(2) == 2) {
       return Mat(T.size(0), T.size(1), DataType<Vec<Treal, 2> >::type, (void*)T.data());
     } else if (T.size(2) == 3) {
@@ -90,6 +95,7 @@ Mat TensorToMat(TH::Tensor<Treal> & T) {
     }
   default:
     {
+      T = T.newContiguous();
       int* sizes = new int[n];
       size_t* steps = new size_t[n-1];
       for (int i = 0; i < n; ++i)

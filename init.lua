@@ -113,25 +113,64 @@ function opencv24.DenseOpticalFlow(...)
       self, {...}, 'opencv24.DenseOpticalFlow', help_desc,
       {arg='im1', type='torch.Tensor', help='image 1'},
       {arg='im2', type='torch.Tensor', help='image 2'},
+      {arg='mode', type='string', default='farnebach',
+       help='mode = farnebach | block'},
       {arg='pyr_scale', type='number', default=0.5,
-       help='Ratio between 2 successive pyramid scales'},
-      {arg='levels', type='number', default=5, help='Pyramid depth'},
+       help='Ratio between 2 successive pyramid scales (farnebach)'},
+      {arg='levels', type='number', default=5, help='Pyramid depth (farnebach)'},
       {arg='winsize', type='number', default=11, 
-       help='Averaging window size'},
+       help='Window size'},
       {arg='iterations', type='number', default=20, 
-       help='Number of iteration at each level'},
+       help='Number of iteration at each level (farnebach)'},
       {arg='poly_n', type='number', default=5,
-       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel'},
+       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel (farnebach)'},
       {arg='poly_sigma', type='number', default=1.1,
-       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel. For poly_n=5 , you can set poly_sigma=1.1 . For poly_n=7 , a good value would be poly_sigma=1.5'})
+       help='Size of the pixel neighborhood used to find polynomial expansion in each pixel. For poly_n=5 , you can set poly_sigma=1.1 . For poly_n=7 , a good value would be poly_sigma=1.5 (farnebach)'},
+      {arg='shiftsize', type='number', default=1,
+       help='Block coordinate increments (block)'},
+      {arg='maxrange', type='number', default=11,
+       help='Size of the scanned neighborhood in pixels around the block (block)'},
+      {arg='flowguess', type='torch.Tensor', default=nil,
+       help="Initial guess for the initialization of the flow (doesn't seem to work too well with farnebach)"}
+   )
+   if self.im1:nDimension() == 3 then
+      self.im1 = image.rgb2y(self.im1)[1]
+   end
+   if self.im2:nDimension() == 3 then
+      self.im2 = image.rgb2y(self.im2)[1]
+   end
    local im1_cv = opencv24.TH2CVImage(self.im1)
    local im2_cv = opencv24.TH2CVImage(self.im2)
-   local flow = torch.Tensor(im1_cv:size(1), im1_cv:size(2), 2)
-   flow.libopencv24.DenseOpticalFlow(im1_cv, im2_cv, flow, 
-                                     self.pyr_scale, self.levels,
-				     self.winsize, self.iterations, 
-                                     self.poly_n, self.poly_sigma)
-   return flow
+   winr = image.display{image={im1_cv, im2_cv}, win=winr}
+   local flow = torch.FloatTensor(2, im1_cv:size(1), im1_cv:size(2))
+   if self.flowguess ~= nil then
+      flow:copy(self.flowguess)
+   else
+      flow:zero()
+   end
+   
+   if self.mode == 'farnebach' then
+      flow.libopencv24.DenseOpticalFlowFarnebach(im1_cv, im2_cv, flow, 
+						 self.pyr_scale, self.levels,
+						 self.winsize, self.iterations, 
+						 self.poly_n, self.poly_sigma,
+						 self.flowguess ~= nil)
+   elseif self.mode == 'block' then
+      local h2 = math.floor(im1_cv:size(1) - self.winsize
+			    +self.shiftsize) / self.shiftsize
+      local w2 = math.floor(im1_cv:size(2) - self.winsize
+			    + self.shiftsize) / self.shiftsize
+      local dh = math.floor((im1_cv:size(1)-h2)/2)
+      local dw = math.floor((im1_cv:size(2)-w2)/2)
+      local flow2 = flow:narrow(2, dh, h2):narrow(3, dw, w2)
+      
+      libopencv24.DenseOpticalFlowBlockMatching(im1_cv, im2_cv, flow2,
+						self.winsize, self.shiftsize,
+						self.maxrange,
+						self.flowguess ~= nil)
+   end
+   
+   return flow:real()
 end
 
 --------------------------------------------------------------------------------

@@ -6,6 +6,7 @@ extern "C" {
 #include "THpp.hpp"
 
 #include<opencv/cv.h>
+#include<opencv/cvaux.h>
 #include "common.hpp"
 
 using namespace TH;
@@ -61,6 +62,43 @@ static int TrackPoints(lua_State* L) {
     }
   THFloatTensor_narrow(corresps, corresps, 0, 0, iCorresps);
   
+  return 0;
+}
+
+//============================================================
+// Dense Optical Flow
+//
+
+extern void cvCalcOpticalFlowBM(const CvArr* prev, const CvArr* curr,
+				CvSize blockSize, CvSize shiftSize,
+				CvSize maxRange, int usePrevious,
+				CvArr* velx, CvArr* vely);
+
+static int DenseOpticalFlowBlockMatching(lua_State *L) {
+  setLuaState(L);
+  Tensor<ubyte> im1  = FromLuaStack<Tensor<ubyte> >(1);
+  Tensor<ubyte> im2  = FromLuaStack<Tensor<ubyte> >(2);
+  Tensor<float> flow = FromLuaStack<Tensor<float> >(3);
+  int  block_size    = FromLuaStack<int >(4);
+  int  shift_size    = FromLuaStack<int >(5);
+  int  max_range     = FromLuaStack<int >(6);
+  bool use_previous  = FromLuaStack<bool>(7);
+  
+  CvMat im1_cv = (CvMat)TensorToMat<ubyte>(im1);
+  CvMat im2_cv = (CvMat)TensorToMat<ubyte>(im2);
+  
+  Tensor<float> flowy = flow.newSelect(0,0);
+  Tensor<float> flowx = flow.newSelect(0,1);
+  Mat vely_m = TensorToMat(flowy);
+  Mat velx_m = TensorToMat(flowx);
+  CvMat vely = vely_m;
+  CvMat velx = velx_m;
+
+  cvCalcOpticalFlowBM(&im1_cv, &im2_cv, cvSize(block_size, block_size),
+		      cvSize(shift_size, shift_size),
+		      cvSize(max_range, max_range),
+		      (int)use_previous, &velx, &vely);
+
   return 0;
 }
 
@@ -299,6 +337,7 @@ static int version (lua_State* L) {
 static const luaL_reg libopencv24_init [] =
   {
     {"TrackPoints",  TrackPoints},
+    {"DenseOpticalFlowBlockMatching", DenseOpticalFlowBlockMatching},
     {"CreateFREAK",  CreateFREAK},
     {"DeleteFREAK",  DeleteFREAK},
     {"ComputeFREAK", ComputeFREAK},
