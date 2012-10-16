@@ -135,7 +135,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   const char *  dtype        = lua_tostring(L,5);
   const char *  etype        = lua_tostring(L,6);
   size_t        maxPoints    = FromLuaStack<size_t>        (7);
-  cout << "OK" << endl;
+
   string detectorType(dtype);
   string extractorType(etype);
   
@@ -146,7 +146,7 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   Ptr<DescriptorExtractor> extractor;
   //KeyPointsFilter          kpFilt;
 
-  size_t i,j,foundPts;
+  size_t i,j,foundPts,maskedKeyPoints;
 
   msk = msk.newContiguous();
   
@@ -165,55 +165,65 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
   // "Pyramid" – PyramidAdaptedFeatureDetector )
   // for example: "GridFAST", "PyramidSTAR" .
 
-  cout << "Detector Type: " << detectorType << endl;
   detector = FeatureDetector::create(detectorType);
   // FIXME should be able to pass a msk_cv here but not working.
   detector->detect(img_cv_gray,keyPoints);
     
-  printf("OK Detector\n");
   if (keyPoints.size() < 1){
     cout << "No KeyPoints Found" << endl;
     feat.resize(0);
     positions.resize(0);
     return 0;
   }
+  
+  
   // Sort the keypoints, return only the top maxPoints
   // Again this function does not work.
   // kpFilt.retainBest(keyPoints, maxPoints);
   //
-  if (maxPoints > 0){
-    foundPts = min(keyPoints.size(), maxPoints);
-  } else {
-    foundPts = keyPoints.size();
-  }
-  printf("OK nKeypoints: %ld of %ld\n",
-         (long)foundPts, (long)keyPoints.size());
 
+  maskedKeyPoints = 0;
+  
   // Mask isn't currently working in opencv... perhaps there is an
   // issue with the type or sizes we use. For now: 
   // knock out keypoints which aren't in the mask by setting value to zero
+  
   if ((msk.nDimension() == 2) &&
       (msk.size(0) == img.size(0)) &&
       (msk.size(1) == img.size(1))){
     for(i=0;i<keyPoints.size();i++){
       KeyPoint & kpt = keyPoints[i];
-      int mval = (int)msk(kpt.pt.x,kpt.pt.y);
+      int mval = (int)msk(kpt.pt.y,kpt.pt.x);
       if (mval == 0){
         kpt.response = 0;
+        maskedKeyPoints++; // keep track of number of points not to return
       }
     }
-    printf("OK filter with mask\n");
   }
+  
+  if (maxPoints > 0){
+    foundPts = min(keyPoints.size()-maskedKeyPoints, maxPoints);
+  } else {
+    foundPts = keyPoints.size()-maskedKeyPoints;
+  }
+
+  if (foundPts <= 0) {
+    cout << "No KeyPoints Found" << endl;
+    feat.resize(0);
+    positions.resize(0);
+    return 0;
+  }
+  
+  
   // Sort the keypoints by value (See keyPointsCompare function in
   // element/code/opencv.c) the keypoints which fall outside the mask
   // have been given a low value.
 
   sort(keyPoints.begin(), keyPoints.end(), keyPointCompare());
 
-  printf("OK sort\n");
   keyPoints.resize(foundPts);
-
-  printf("OK resize %ld\n",(long)keyPoints.size());
+  cout << "Found " << keyPoints.size() << " keypoints" << endl;
+  
   // computing descriptors
 
   /*
@@ -223,7 +233,6 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
     
     extractor = DescriptorExtractor::create(extractorType);
   */
-  cout << "Extractor Type: " << extractorType << endl;
   if (extractorType.compare("SURF") == 0) {
     extractor = new SurfDescriptorExtractor; 
   } else if (extractorType.compare("SIFT") == 0) { 
@@ -237,7 +246,6 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
            etype);
     extractor = new SurfDescriptorExtractor;
   }
-  printf("OK extractor type\n");
   /*
     } else if (extractorType.compare("OpponentSIFT") == 0) { 
     extractor = new OpponentSiftDescriptorExtractor;
@@ -246,37 +254,22 @@ static int libopencv24_(DetectExtract)(lua_State *L) {
     } else if (extractorType.compare("FREAK") == 0) { 
     extractor = new FreakDescriptorExtractor;
   */
-  printf("KeyPoints.size() %ld\n",(long)keyPoints.size());
-  
   extractor->compute(img_cv_gray, keyPoints, feat_cv);
-  cout << "Features: " << feat_cv.rows << " x " << feat_cv.cols <<endl;
-
-  printf("OK Feat Extraction\n");
   
   feat.resize(feat_cv.rows,feat_cv.cols);
   positions.resize(foundPts, 2);
-  printf("OK resize\n");
   
   for (i = 0; i < foundPts; ++i) {
     const KeyPoint & kpt = keyPoints[i];
     positions(i, 0) = kpt.pt.x;
     positions(i, 1) = kpt.pt.y;
   }
-  printf("OK keypoints\n");
   
   for(i = 0; i < (size_t)feat_cv.rows; i++){ 
     for(j = 0; j < (size_t)feat_cv.cols; j++){
       feat(i,j) = feat_cv.at<float>(i,j);
     }
   }
-  printf("OK copy feat\n");
-  // DEBUG
-  for(j = 0; j < (size_t)feat_cv.cols; j++){
-    printf("%f, ", feat(0,j));
-  }
-  printf("\n");
-  
-  printf("OK convert data\n");
   
   return 0;
 }
